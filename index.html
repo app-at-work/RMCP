@@ -577,13 +577,12 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   }
 
   /* =================== SUPABASE (REST) =================== */
-  // Fetch com tempo limite (evita requisição "pendurada" no proxy)
   async function fetchTO(url, init, ms){
     const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms || 25000);
     try { return await fetch(url, Object.assign({}, init, {signal: ac.signal})); }
     finally { clearTimeout(t); }
   }
-  let GET_MODE = 0;   // 0 = simples (chave na URL), 1 = cabeçalhos. Guarda o modo que funcionou.
+  let GET_MODE = 0;
   async function sb(path, opt = {}){
     const method = opt.method || 'GET';
     const isGet = method === 'GET' && !opt.headers;
@@ -592,7 +591,6 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     let r, lastErr;
     const tries = isGet ? 4 : 1;
     for (let t = 0; t < tries; t++){
-      // GET alterna entre requisição simples (sem preflight CORS) e com cabeçalhos, mantendo o modo que funcionar
       const mode = isGet ? (GET_MODE + t) % 2 : 1;
       const url = `${SB_URL}/rest/v1/${path}${mode === 0 ? qs : ''}`;
       try {
@@ -611,7 +609,6 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     const t = await r.text();
     return t ? JSON.parse(t) : null;
   }
-  /* ---------- Cache local (IndexedDB): usado quando o banco não responde ---------- */
   const IDB = {
     open(){ return new Promise((res, rej) => { if (!window.indexedDB){ rej(new Error('sem IndexedDB')); return; } const q = indexedDB.open('rmcp_cache', 1); q.onupgradeneeded = () => q.result.createObjectStore('kv'); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); },
     async set(k, v){ try { const db = await this.open(); await new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); } catch(e){} },
@@ -814,13 +811,11 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
 
   /* =================== CARGA DO BANCO =================== */
   const DF_SEL = 'id,unidade,categoria,frota,equipamento,dia,df_valor,df_txt,df_zero';
-  // Período inicial: mês atual + próximo mês
   function defaultCols(){
     const d = new Date(todayMs()), out = [];
     for (let ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1), end = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 2, 1); ms < end; ms += DAY) out.push(ms);
     return out;
   }
-  // Agrupa meses faltantes em faixas contínuas [de, até]
   function missingRanges(cols){
     const ks = [...new Set(cols.map(monKey))].filter(k => !LOADED.has(k)).sort((a,b) => a - b);
     const rg = [];
@@ -829,7 +824,6 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       de: isoD(Date.UTC(Math.floor(a / 12), a % 12, 1)),
       ate: isoD(Date.UTC(Math.floor(b / 12), b % 12 + 1, 1) - DAY)}));
   }
-  // Carrega do banco somente os meses do Programa de DF ainda não carregados
   async function fetchDF(cols, onPage){
     const rg = missingRanges(cols);
     let n = 0;
@@ -849,10 +843,9 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       const prog = () => { $('ldTxt').textContent = `Carregando dados do banco... ${nf(cntDF + cntCP)} registros`; };
       DF_ROWS.clear(); LOADED.clear();
       const cols = uiReady ? getCols() : defaultCols();
-      // Sequencial: proxies corporativos costumam derrubar várias conexões simultâneas
       const any = await sb(`${T_DF}?select=id&limit=1`);
       await fetchDF(cols, n => { cntDF = n; prog(); });
-      const cp = await sbAll(T_CP, 'id,ativo,componente,nome_padrao,data_necessidade', n => { cntCP = n; prog(); });   // componentes: base inteira
+      const cp = await sbAll(T_CP, 'id,ativo,componente,nome_padrao,data_necessidade', n => { cntCP = n; prog(); });
       const at = await sbAll(T_AT, 'id,componente_id,equipamento,parada_inicio,parada_fim');
       DB_CP = cp; DB_AT = at; HAS_DF = !!(any && any.length) || DB_DF.length > 0;
       updChip();
@@ -878,7 +871,6 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     } finally { hideLoad(); }
   }
   function updChip(){ setDB(true, `Banco: ${nf(DB_DF.length)} DF no período · ${nf(DB_CP.length)} comp.`); }
-  // Mudança de período: renderiza e, se necessário, busca os meses que faltam
   let pcT = null, pcBusy = Promise.resolve();
   function periodChanged(){
     render(); centerToday();
@@ -1703,7 +1695,6 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
         g.semPar.sort((a,b) => a.c.nec - b.c.nec || coll.compare(a.eq.e, b.eq.e));
         g.nSP = g.semPar.length;
         g.evList = [...g.evs].sort((a,b) => a.s - b.s || coll.compare(a.eq.e, b.eq.e));
-        // Componentes com parada programada (vinculados às paradas do grupo)
         g.comPar = [];
         g.evList.forEach(ev => evComps(ev).forEach(c => g.comPar.push({c, ev})));
         g.comPar.sort((a,b) => a.c.nec - b.c.nec || coll.compare(a.ev.eq.e, b.ev.eq.e));
@@ -1804,7 +1795,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     let h = `<div class="rs-kpis">
       ${k('Equipamentos', tot.nEq)}${k('Equip. com DF = 0', tot.eqZ, 'r')}${k('Dias DF = 0', tot.dias, 'r')}
       ${k('Paradas', tot.nEv)}${k('Paradas c/ componente', tot.nB, 'b')}${k('Paradas atribuídas', `${tot.nG} <em>${pcPct(tot.nG, tot.nB)}</em>`, 'g')}${k('Comp. com parada', tot.nCP, 'b')}${k('Comp. sem parada', tot.nSP, 'a')}</div>
-      <div class="rs-leg"><span><i style="background:#E5484D"></i>DF = 0 sem componente</span><span><i style="background:#1D6FE0"></i>Parada mais próxima da necessidade</span><span><i style="background:#16A34A"></i>Componente atribuído</span><span><i class="dm" style="background:#1D6FE0"></i>Data de Necessidade (azul vinculado · verde atribuído · amarelo sem parada)</span><span><i class="tdl"></i>Hoje</span></div>
+      <div class="rs-leg"><span><i style="background:#E5484D"></i>DF = 0 sem componente</span><span><i style="background:#1D6FE0"></i>Parada mais próxima da necessidade</span><span><i style="background:#16A34A"></i>Componente atribuído</span><span><i class="dm" style="background:#1D6FE0"></i>Necessidade vinculada à parada</span><span><i class="dm" style="background:#16A34A"></i>Necessidade atribuída</span><span><i class="dm" style="background:#D4A017"></i>Componente sem parada programada</span><span><i class="tdl"></i>Hoje</span></div>
       <p class="rs-note">Barras = dias consecutivos com DF = 0 (parada). Clique em uma barra, losango ou card para ver os componentes.</p>`;
     if (!groups.length) h += '<div class="cempty">Nenhum dado para os filtros selecionados.</div>';
     let lastU = null;
@@ -1879,15 +1870,19 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     if (ti >= 0) s.addShape(pptx.ShapeType.line, {x: gx + (ti + 0.5)*dw, y: Y + mH + wH, w: 0, h: dH + bodyH, line:{color:'0FA39A', width:1.5, dashType:'dash'}});
   }
   function pptLegend(pptx, s, x, y, w){
-    const F = 'Segoe UI';
+    const F = 'Segoe UI', H = 0.21;
+    const txt = (t, i) => s.addText(t, {x: x + 0.4, y: y + i*H, w: w - 0.4, h: H, fontFace:F, fontSize:8.5, color:PC.txt, valign:'middle', margin:0});
     [['red','DF = 0 sem componente'],['blue','Parada mais próxima da necessidade'],['green','Componente atribuído']].forEach(([c, t], i) => {
-      s.addShape(pptx.ShapeType.roundRect, {x, y: y + i*0.3 + 0.07, w: 0.32, h: 0.16, fill:{color:PC[c]}, line:{color:PC[c], width:0}, rectRadius:0.03});
-      s.addText(t, {x: x + 0.4, y: y + i*0.3, w: w - 0.4, h: 0.3, fontFace:F, fontSize:9, color:PC.txt, valign:'middle', margin:0});
+      s.addShape(pptx.ShapeType.roundRect, {x, y: y + i*H + 0.04, w: 0.32, h: 0.13, fill:{color:PC[c]}, line:{color:PC[c], width:0}, rectRadius:0.03});
+      txt(t, i);
     });
-    s.addShape(pptx.ShapeType.diamond, {x: x + 0.08, y: y + 0.97, w: 0.16, h: 0.16, fill:{color:PC.blue}, line:{color:'FFFFFF', width:0.5}});
-    s.addText('Data de Necessidade', {x: x + 0.4, y: y + 0.9, w: w - 0.4, h: 0.3, fontFace:F, fontSize:9, color:PC.txt, valign:'middle', margin:0});
-    s.addShape(pptx.ShapeType.line, {x: x + 0.16, y: y + 1.22, w: 0, h: 0.22, line:{color:'0FA39A', width:1.5, dashType:'dash'}});
-    s.addText('Hoje', {x: x + 0.4, y: y + 1.18, w: w - 0.4, h: 0.3, fontFace:F, fontSize:9, color:PC.txt, valign:'middle', margin:0});
+    [['blue','Necessidade vinculada à parada'],['green','Necessidade atribuída'],['amber','Componente sem parada programada']].forEach(([c, t], k) => {
+      const i = 3 + k;
+      s.addShape(pptx.ShapeType.diamond, {x: x + 0.09, y: y + i*H + 0.035, w: 0.14, h: 0.14, fill:{color:PC[c]}, line:{color:'FFFFFF', width:0.5}});
+      txt(t, i);
+    });
+    s.addShape(pptx.ShapeType.line, {x: x + 0.16, y: y + 6*H + 0.02, w: 0, h: 0.17, line:{color:'0FA39A', width:1.5, dashType:'dash'}});
+    txt('Hoje', 6);
   }
 
   async function exportPPT(){
@@ -1970,7 +1965,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
           s.addText(g.text.map(t => ({text:t, options:{bullet:{indent:12}, breakLine:true, paraSpaceAfter:6}})),
             {x:9.8, y:1.6, w:3.0, h:3.45, fontFace:F, fontSize:10, color:PC.txt, valign:'top', margin:2, fit:'shrink'});
           s.addText('Legenda', {x:9.85, y:5.12, w:2.9, h:0.3, fontFace:F, fontSize:11, bold:true, color:PC.teal, margin:0});
-          pptLegend(pptx, s, 9.85, 5.42, 2.95);
+          pptLegend(pptx, s, 9.85, 5.4, 2.95);
           s.addNotes(`${g.u} › ${g.c}\n` + g.text.join('\n'));
           footer(s);
         }
@@ -1999,7 +1994,6 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
           });
           footer(s);
         }
-        // Cards dos componentes com parada programada
         for (let k = 0; k < g.nCP; k += PER){
           const s = pptx.addSlide(), part = g.comPar.slice(k, k + PER), tp = Math.ceil(g.nCP / PER);
           title(s, `${g.u} › ${g.c} · Componentes com parada${tp > 1 ? `  (${k/PER + 1}/${tp})` : ''}`, 'Componentes vinculados à parada (DF = 0) mais próxima da Data de Necessidade', PC.blue);
