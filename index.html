@@ -46,6 +46,8 @@ button,input,select{font:inherit;color:inherit}
 .chip{font-size:12px;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:999px;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:6px}
 .chip .dot{width:8px;height:8px;border-radius:50%;background:#9ff3c0;flex:none}
 .chip.off .dot{background:#ffb4b4}
+.chip.pend .dot{background:#ffd166;animation:pdot 1.2s infinite}
+@keyframes pdot{50%{opacity:.35}}
 .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--card);padding:8px 14px;border-radius:10px;cursor:pointer;font-weight:600;transition:.15s}
 .btn:hover{border-color:var(--pri2);color:var(--pri)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -542,9 +544,9 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   let curEv = null, curNec = null;
   let LAST = {cols:[], list:[]};
   let uiReady = false;
-  const DF_ROWS = new Map();    // id -> linha df_programa já carregada
-  const LOADED = new Set();     // meses (monKey) do Programa de DF já carregados
-  let HAS_DF = false;           // existe algum Programa de DF no banco
+  const DF_ROWS = new Map();
+  const LOADED = new Set();
+  let HAS_DF = false;
 
   /* =================== UTILIDADES =================== */
   const norm = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
@@ -571,9 +573,14 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   $('msgOk').addEventListener('click', () => $('ovMsg').classList.remove('show'));
   $('msgRetry').addEventListener('click', () => { $('ovMsg').classList.remove('show'); loadAll(); });
 
+  let DB_OK = false, DB_TXT = '';
   function setDB(ok, txt){
+    DB_OK = ok; if (txt != null) DB_TXT = txt;
+    const n = (typeof OUTBOX !== 'undefined') ? OUTBOX.length : 0;
     $('chipDB').classList.toggle('off', !ok);
-    $('chipDBTxt').textContent = txt;
+    $('chipDB').classList.toggle('pend', n > 0);
+    $('chipDBTxt').textContent = DB_TXT + (n ? ` · ${n} pendente${n > 1 ? 's' : ''} de envio` : '');
+    $('chipDB').title = n ? `${n} alteração(ões) feitas offline aguardando envio ao banco` : 'Conexão com o banco';
   }
 
   /* =================== SUPABASE (REST) =================== */
@@ -614,6 +621,100 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     async set(k, v){ try { const db = await this.open(); await new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); } catch(e){} },
     async get(k){ try { const db = await this.open(); return await new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); } catch(e){ return null; } }
   };
+
+  /* =================== FILA OFFLINE (envio automático ao voltar o sinal) =================== */
+  var OUTBOX = [];                       // [{qid, tipo:'atribuir'|'remover'|'importar', payload, em, desc}]
+  let syncing = false;
+  const saveOutbox = () => { IDB.set('outbox', OUTBOX); try { localStorage.setItem('rmcp_outbox_n', String(OUTBOX.length)); } catch(e){} };
+  const saveSnap = () => IDB.set('snap', {em: Date.now(), df: DB_DF, cp: DB_CP, at: DB_AT, meses: [...LOADED], has: HAS_DF});
+  function enqueue(tipo, payload, desc){
+    OUTBOX.push({qid: Date.now() + '-' + Math.random().toString(36).slice(2, 7), tipo, payload, em: Date.now(), desc});
+    saveOutbox();
+    setDB(DB_OK);
+    scheduleSync(1500);
+  }
+  async function runItem(it){
+    const p = it.payload;
+    if (it.tipo === 'atribuir') return rpc('rmcp_atribuir', {rows: p.rows});
+    if (it.tipo === 'remover') return rpc('rmcp_remover_atribuicao', {ids: p.ids});
+    if (it.tipo === 'importar'){
+      if (!p.loteId){ p.loteId = await rpc('rmcp_novo_lote', p.lote); saveOutbox(); }   // guarda o lote para não duplicar ao retomar
+      const rows = p.rows.map(o => ({...o, lote_id: p.loteId}));
+      const ini = p.sent || 0;
+      for (let i = ini; i < rows.length; i += BATCH){
+        await rpc(p.fn, {lote_id: p.loteId, rows: rows.slice(i, i + BATCH)});
+        p.sent = Math.min(i + BATCH, rows.length); saveOutbox();
+      }
+    }
+  }
+  // Envia a fila na ordem em que foi gerada; para no primeiro erro de rede
+  async function syncOutbox(){
+    if (syncing || !OUTBOX.length) return false;
+    syncing = true;
+    const txt0 = DB_TXT;
+    let enviados = 0;
+    const falhas = [];
+    try {
+      while (OUTBOX.length){
+        const it = OUTBOX[0];
+        setDB(DB_OK, `Sincronizando ${it.desc}`);
+        try { await runItem(it); enviados++; }
+        catch(err){
+          if (err.net) break;                          // sem sinal: tenta de novo depois
+          falhas.push(`• ${it.desc}: ${err.message || err}`);   // erro do banco: descarta para não travar a fila
+        }
+        OUTBOX.shift(); saveOutbox();
+      }
+    } finally { syncing = false; }
+    setDB(DB_OK, txt0);
+    if (OUTBOX.length){ scheduleSync(20000); }
+    if (enviados || falhas.length){
+      if (!OUTBOX.length) await loadAll(true);
+      if (falhas.length) showMsg('Algumas alterações offline não foram aceitas pelo banco', falhas.join('\n'));
+      else toast(`${enviados} alteração(ões) offline enviada(s) ao banco`);
+    }
+    return true;
+  }
+  let syncT = null;
+  function scheduleSync(ms){ clearTimeout(syncT); syncT = setTimeout(trySync, ms); }
+  // Verifica o sinal: com pendências tenta enviar; sem pendências e offline, recarrega do banco
+  async function trySync(){
+    if (syncing) return;
+    if (!navigator.onLine){ if (OUTBOX.length || !DB_OK) scheduleSync(20000); return; }
+    if (OUTBOX.length){ await syncOutbox(); return; }
+    if (!DB_OK && uiReady){
+      try { await sb(`${T_DF}?select=id&limit=1`); await loadAll(true); }
+      catch(e){ scheduleSync(30000); }
+    }
+  }
+  window.addEventListener('online', () => scheduleSync(800));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleSync(500); });
+  setInterval(() => { if (OUTBOX.length || !DB_OK) trySync(); }, 45000);
+  function toast(t){
+    let el = document.getElementById('rmcpToast');
+    if (!el){ el = document.createElement('div'); el.id = 'rmcpToast'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+      el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#16A34A;color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:9999;transition:opacity .3s;max-width:90vw;text-align:center';
+      document.body.appendChild(el); }
+    el.textContent = t; el.style.opacity = '1';
+    clearTimeout(el._t); el._t = setTimeout(() => { el.style.opacity = '0'; }, 3500);
+  }
+  // Aplica localmente uma importação feita offline (para já aparecer no Gantt)
+  let TMP_N = 0;
+  function applyLocalImport(isDF, rows){
+    if (isDF){
+      const idx = new Map(); DF_ROWS.forEach((r, id) => idx.set(r.equipamento + '|' + r.dia, id));
+      rows.forEach(o => {
+        const old = idx.get(o.equipamento + '|' + o.dia), id = old != null ? old : 'tmp-' + (++TMP_N);
+        DF_ROWS.set(id, {id, unidade:o.unidade, categoria:o.categoria, frota:o.frota, equipamento:o.equipamento, dia:o.dia, df_valor:o.df_valor ?? null, df_txt:o.df_txt ?? null, df_zero:!!o.df_zero});
+      });
+      DB_DF = [...DF_ROWS.values()];
+      rows.forEach(o => LOADED.add(monKey(fromIso(o.dia))));
+      HAS_DF = HAS_DF || rows.length > 0;
+    } else {
+      rows.forEach(o => DB_CP.push({id:'tmp-' + (++TMP_N), ativo:o.ativo, componente:o.componente, nome_padrao:o.nome_padrao, data_necessidade:o.data_necessidade}));
+    }
+    saveSnap();
+  }
   // Leitura paginada completa (sem duplicar: ordenação estável por id)
   async function sbAll(table, select, onPage, filter){
     const out = [];
@@ -836,8 +937,9 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     DB_DF = [...DF_ROWS.values()];
     return rg.length;
   }
-  async function loadAll(){
-    showLoad('Carregando dados do banco...');
+  async function loadAll(quiet){
+    if (quiet !== true && OUTBOX.length && !syncing){ if (await syncOutbox() && !OUTBOX.length) return; }
+    if (quiet !== true) showLoad('Carregando dados do banco...');
     try {
       let cntDF = 0, cntCP = 0;
       const prog = () => { $('ldTxt').textContent = `Carregando dados do banco... ${nf(cntDF + cntCP)} registros`; };
@@ -849,11 +951,13 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       const at = await sbAll(T_AT, 'id,componente_id,equipamento,parada_inicio,parada_fim');
       DB_CP = cp; DB_AT = at; HAS_DF = !!(any && any.length) || DB_DF.length > 0;
       updChip();
-      IDB.set('snap', {em: Date.now(), df: DB_DF, cp: DB_CP, at: DB_AT, meses: [...LOADED], has: HAS_DF});
-      buildAll();
-      showScreens();
+      saveSnap();
+      if (uiReady && quiet === true){ buildAll(); refreshUI(); } else { buildAll(); showScreens(); }
+      if (OUTBOX.length) scheduleSync(1000);
     } catch(err){
+      if (quiet === true && uiReady){ setDB(false); scheduleSync(30000); return; }
       const snap = await IDB.get('snap');
+      scheduleSync(30000);
       if (snap && (snap.df.length || snap.cp.length)){
         DF_ROWS.clear(); LOADED.clear();
         snap.df.forEach(x => DF_ROWS.set(x.id, x)); (snap.meses || []).forEach(k => LOADED.add(k));
@@ -862,7 +966,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
         setDB(false, `Offline · dados de ${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`);
         buildAll();
         showScreens();
-        showMsg('Banco indisponível — exibindo última cópia local', diagnose(err) + `\n\nOs dados exibidos são da última carga bem-sucedida (${d.toLocaleString('pt-BR')}). Importações e atribuições ficam indisponíveis até a conexão voltar.`, false, true);
+        showMsg('Banco indisponível — exibindo última cópia local', diagnose(err) + `\n\nOs dados exibidos são da última carga bem-sucedida (${d.toLocaleString('pt-BR')}). Você pode continuar atribuindo e importando: as alterações ficam guardadas neste navegador e são enviadas ao banco automaticamente quando o sinal voltar.`, false, true);
       } else {
         setDB(false, 'Sem conexão com o banco');
         showScreens();
@@ -1010,13 +1114,27 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   const COMP_LBL = {green:'Atribuído à parada', blue:'Vinculado à parada (não atribuído)', amber:'Sem parada DF = 0 no mês'};
 
   /* =================== ATRIBUIÇÕES (persistidas) =================== */
+  // Mantém DB_AT local coerente (para cópia offline e reconstrução)
+  function localAT(ids, row){
+    const set = new Set(ids.map(String));
+    DB_AT = DB_AT.filter(a => !set.has(String(a.componente_id)));
+    if (row) ids.forEach(id => DB_AT.push(Object.assign({id:'tmp-' + (++TMP_N), componente_id: Number(id)}, row)));
+    ids.forEach(id => { if (row) AT_ROW.set(String(id), Object.assign({componente_id:Number(id)}, row)); else AT_ROW.delete(String(id)); });
+    saveSnap();
+  }
   async function saveAssign(ids, ev){
-    const rows = ids.map(id => ({componente_id: Number(id), equipamento: ev.eq.e, parada_inicio: isoD(ev.s), parada_fim: isoD(ev.e)}));
+    const tmp = ids.filter(id => String(id).startsWith('tmp-'));
+    if (tmp.length){ showMsg('Componente ainda não enviado', 'Este componente foi importado offline e ainda não está no banco. Aguarde a sincronização para atribuí-lo.'); ids = ids.filter(id => !String(id).startsWith('tmp-')); if (!ids.length) return; }
+    const base = {equipamento: ev.eq.e, parada_inicio: isoD(ev.s), parada_fim: isoD(ev.e)};
+    const rows = ids.map(id => Object.assign({componente_id: Number(id)}, base));
     const prev = ids.map(id => [id, ASSIGN.get(id)]);
     ids.forEach(id => ASSIGN.set(id, ev.id));
     refreshAfterAssign();
-    try { await rpc('rmcp_atribuir', {rows}); }
+    const desc = `Atribuir ${ids.length} componente(s) a ${ev.eq.e} (${fmtD(ev.s)})`;
+    if (OUTBOX.length){ localAT(ids, base); enqueue('atribuir', {rows}, desc); return; }
+    try { await rpc('rmcp_atribuir', {rows}); localAT(ids, base); }
     catch(err){
+      if (err.net){ localAT(ids, base); enqueue('atribuir', {rows}, desc); toast('Sem sinal: atribuição salva offline e será enviada automaticamente'); return; }
       prev.forEach(([id, p]) => p ? ASSIGN.set(id, p) : ASSIGN.delete(id));
       refreshAfterAssign();
       showMsg('Erro ao salvar atribuição', err.message || String(err));
@@ -1026,8 +1144,11 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     const prev = ids.map(id => [id, ASSIGN.get(id)]);
     ids.forEach(id => ASSIGN.delete(id));
     refreshAfterAssign();
-    try { await rpc('rmcp_remover_atribuicao', {ids: ids.map(Number)}); }
+    const desc = `Remover atribuição de ${ids.length} componente(s)`;
+    if (OUTBOX.length){ localAT(ids, null); enqueue('remover', {ids: ids.map(Number)}, desc); return; }
+    try { await rpc('rmcp_remover_atribuicao', {ids: ids.map(Number)}); localAT(ids, null); }
     catch(err){
+      if (err.net){ localAT(ids, null); enqueue('remover', {ids: ids.map(Number)}, desc); toast('Sem sinal: remoção salva offline e será enviada automaticamente'); return; }
       prev.forEach(([id, p]) => p && ASSIGN.set(id, p));
       refreshAfterAssign();
       showMsg('Erro ao remover atribuição', err.message || String(err));
@@ -1102,7 +1223,9 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       let dMin = null, dMax = null;
       byKey.forEach(o => { if (!dMin || o.dia < dMin) dMin = o.dia; if (!dMax || o.dia > dMax) dMax = o.dia; });
       $('ldTxt').textContent = 'Comparando com o banco...';
-      const dbRows = await sbAll(T_DF, DF_SEL, n => { $('ldTxt').textContent = `Comparando com o banco... ${nf(n)} registros`; }, `&dia=gte.${dMin}&dia=lte.${dMax}`);
+      let dbRows;
+      try { dbRows = await sbAll(T_DF, DF_SEL, n => { $('ldTxt').textContent = `Comparando com o banco... ${nf(n)} registros`; }, `&dia=gte.${dMin}&dia=lte.${dMax}`); }
+      catch(e){ if (!e.net) throw e; dbRows = DB_DF.filter(r => r.dia >= dMin && r.dia <= dMax); }   // offline: compara com a cópia local
       const dbMap = new Map(dbRows.map(r => [r.equipamento + '|' + r.dia, r]));
       const novas = [], alteradas = [], iguais = [];
       byKey.forEach((o, k) => {
@@ -1203,18 +1326,27 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     const send = [...I.novas, ...I.alteradas];
     if (!send.length) return;
     $('ovImp').classList.remove('show');
+    const lote = {tipo: I.tipo, arquivo: I.arquivo, aba: I.aba, linhas_lidas: I.lidas, duplicadas_arquivo: I.dupArq.length,
+      ja_existentes: I.iguais.length, inseridas: I.novas.length, atualizadas: I.alteradas.length};
+    const clean0 = send.map(o => { const x = {...o}; delete x._ln; delete x._old; delete x._keep; return x; });
+    const fn = isDF ? 'rmcp_upsert_programa' : 'rmcp_upsert_componentes';
+    const desc = `Importação ${isDF ? 'Programa de DF' : 'Componentes'} — ${I.arquivo} (${nf(clean0.length)} linhas)`;
+    const offline = () => {
+      enqueue('importar', {lote, fn, rows: clean0}, desc);
+      applyLocalImport(isDF, clean0);
+      IMP = null; hideLoad();
+      buildAll(); refreshUI();
+      showMsg('Importação salva offline', `${nf(clean0.length)} linha(s) guardadas neste navegador.
+Elas já aparecem no Gantt e serão enviadas ao banco automaticamente quando o sinal voltar.
+
+Não feche os dados do navegador (cache) até a sincronização terminar.`, true);
+    };
+    if (OUTBOX.length){ offline(); return; }
     showLoad('Enviando ao banco...');
     try {
-      const loteId = await rpc('rmcp_novo_lote', {
-        tipo: I.tipo, arquivo: I.arquivo, aba: I.aba, linhas_lidas: I.lidas, duplicadas_arquivo: I.dupArq.length,
-        ja_existentes: I.iguais.length, inseridas: I.novas.length, atualizadas: I.alteradas.length
-      });
-      const rows = send.map(o => {
-        const x = {...o, lote_id: loteId};
-        delete x._ln; delete x._old; delete x._keep;
-        return x;
-      });
-      await rpcBatches(isDF ? 'rmcp_upsert_programa' : 'rmcp_upsert_componentes', {lote_id: loteId}, rows,
+      const loteId = await rpc('rmcp_novo_lote', lote);
+      const rows = clean0.map(o => ({...o, lote_id: loteId}));
+      await rpcBatches(fn, {lote_id: loteId}, rows,
         (n, t) => { $('ldTxt').textContent = `Enviando ao banco... ${Math.round(n / t * 100)}% (${nf(n)} de ${nf(t)})`; });
       const res = `Novas: ${nf(I.novas.length)}${isDF ? `\nAtualizadas: ${nf(I.alteradas.length)}` : ''}\nIgnoradas (já existiam): ${nf(I.iguais.length)}\nDuplicadas no arquivo (descartadas): ${nf(I.dupArq.length)}`;
       IMP = null;
@@ -1222,6 +1354,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       await loadAll();
       showMsg('Importação concluída', res, true);
     } catch(err){
+      if (err.net){ offline(); return; }
       hideLoad();
       showMsg('Erro ao enviar ao banco', `${err.message || err}\n\nNenhuma alteração parcial é desfeita automaticamente; ao reenviar, as linhas já gravadas serão reconhecidas como existentes.`);
     }
@@ -1285,12 +1418,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   }
   function setDefaultPeriod(){
     const df = defaultSel();
-    fillYears();
-    msY.set(df.ys);
-    fillMonths();
-    msM.set(df.ms);
-    msW.clear();
-    fillWeeks();
+    fillYears(); msY.set(df.ys); fillMonths(); msM.set(df.ms); msW.clear(); fillWeeks();
   }
   const isDefaultPeriod = () => {
     const df = defaultSel(), Y = msY.get(), M = msM.get();
@@ -1895,10 +2023,9 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       const F = 'Segoe UI', per = `${fmtD(cols[0])} a ${fmtD(cols[n-1])}`;
       const pptx = new PptxGenJS();
       pptx.layout = 'LAYOUT_WIDE';
-      pptx.title = 'RMCP · Resumo Executivo · Programa de DF';
+      pptx.title = 'RMCP · Resumo Executivo · Planejamento de Manutenção de Equipamentos de Mina - Complexo VGR';
       let pg = 1;
       const footer = s => {
-        s.addImage({data:LOGO, x:12.45, y:0.25, w:0.45, h:0.45});
         s.addText(`RMCP · Programa de DF · ${per}`, {x:0.4, y:7.1, w:8, h:0.3, fontFace:F, fontSize:8, color:PC.mut, margin:0});
         s.addText(String(pg++), {x:12.4, y:7.1, w:0.5, h:0.3, fontFace:F, fontSize:8, color:PC.mut, align:'right', margin:0});
       };
@@ -1913,7 +2040,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       s0.addShape(pptx.ShapeType.rect, {x:0, y:0, w:13.333, h:1.15, fill:{color:PC.teal}, line:{color:PC.teal, width:0}});
       s0.addShape(pptx.ShapeType.roundRect, {x:0.4, y:0.2, w:0.75, h:0.75, fill:{color:'FFFFFF'}, line:{color:'FFFFFF', width:0}, rectRadius:0.12});
       s0.addImage({data:LOGO, x:0.5, y:0.3, w:0.55, h:0.55});
-      s0.addText('Resumo Executivo · Programa de DF', {x:1.35, y:0.15, w:11, h:0.55, fontFace:F, fontSize:26, bold:true, color:'FFFFFF', margin:0});
+      s0.addText('Resumo Executivo · Planejamento de Manutenção de Equipamentos de Mina - Complexo VGR', {x:1.35, y:0.15, w:11, h:0.55, fontFace:F, fontSize:22, bold:true, color:'FFFFFF', margin:0, fit:'shrink'});
       s0.addText(`Período: ${per}  ·  Visão por Unidade › Categoria`, {x:1.35, y:0.7, w:11, h:0.35, fontFace:F, fontSize:13, color:'E3F4F2', margin:0});
       const kp = [['Equipamentos', tot.nEq, PC.txt],['Equip. com DF = 0', tot.eqZ, PC.red],['Dias DF = 0', tot.dias, PC.red],['Paradas', tot.nEv, PC.txt],['Paradas c/ componente', tot.nB, PC.blue],['Paradas atribuídas', `${tot.nG} (${pcPct(tot.nG, tot.nB)})`, PC.green],['Comp. sem parada', tot.nSP, 'B7860B']];
       const kw = (12.53 - 6*0.12) / 7;
@@ -2041,7 +2168,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
 
   /* =================== INÍCIO =================== */
   let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => render(true), 150); });
-  loadAll();
+  (async () => { const ob = await IDB.get('outbox'); if (Array.isArray(ob)) OUTBOX = ob; loadAll(); })();
 })();
 </script>
 </body>
