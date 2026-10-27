@@ -121,7 +121,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
 .gscroll{flex:1;overflow:auto;position:relative;border-radius:14px}
 .ginner{position:relative}
 .row{display:flex;height:var(--rowH);position:relative;z-index:1}
-.lbl{position:sticky;left:0;z-index:3;width:var(--lblW);min-width:var(--lblW);display:flex;align-items:center;gap:6px;padding-right:10px;background:var(--card);border-right:1px solid var(--line);border-bottom:1px solid var(--line2);font-size:13px;overflow:hidden}
+.lbl{position:sticky;left:0;z-index:8;width:var(--lblW);min-width:var(--lblW);display:flex;align-items:center;gap:6px;padding-right:10px;background:var(--card);border-right:1px solid var(--line);border-bottom:1px solid var(--line2);font-size:13px;overflow:hidden}
 .lbl .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .lbl .cnt{flex:none;font-size:11px;font-weight:700;background:var(--pri-soft);color:var(--pri);padding:1px 7px;border-radius:999px}
 .lbl .chev{flex:none;width:16px;display:inline-flex;justify-content:center;transition:.15s;color:var(--mut)}
@@ -135,8 +135,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
 .tl{position:relative;flex:none;border-bottom:1px solid var(--line2);
   background-image:repeating-linear-gradient(to right,transparent 0,transparent calc(var(--col) - 1px),var(--line2) calc(var(--col) - 1px),var(--line2) var(--col))}
 .row:not(.hdr):hover .tl{background-color:var(--hover)}
-.hdr{position:sticky;top:0;z-index:6;height:auto}
-.hdr .lbl{z-index:7;align-items:flex-end;padding:8px 10px;font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;background:var(--card);border-bottom:1px solid var(--line);line-height:1.35}
+.hdr{position:sticky;top:0;z-index:10;height:auto}
+.hdr .lbl{z-index:11;align-items:flex-end;padding:8px 10px;font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;background:var(--card);border-bottom:1px solid var(--line);line-height:1.35}
 .hdr .tl{background:var(--card);border-bottom:1px solid var(--line);background-image:none}
 .months,.weeks,.days{display:flex}
 .months div{flex:none;font-size:11.5px;font-weight:700;padding:6px 8px;border-right:1px solid var(--line);border-bottom:1px solid var(--line2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:capitalize;color:var(--pri)}
@@ -165,6 +165,23 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
 .gnec span{transform:rotate(-45deg);font-size:8px;font-weight:800;color:#fff;line-height:1}
 .gnec.blue{background:var(--blue)} .gnec.green{background:var(--green)} .gnec.amber{background:var(--amber)}
 .gnec:hover{transform:rotate(45deg) scale(1.25)}
+.gord{position:absolute;bottom:3px;min-width:16px;height:16px;padding:0 4px;margin-left:-8px;border-radius:999px;border:2px solid #fff;background:var(--ord);color:#fff;font-size:9px;font-weight:800;line-height:1;cursor:pointer;z-index:2;box-shadow:0 1px 4px rgba(0,0,0,.3);display:inline-flex;align-items:center;justify-content:center}
+.gord:hover{transform:scale(1.2);z-index:3}
+.gord:focus-visible{outline:2px solid var(--pri2);outline-offset:2px}
+.legend .lo{width:12px;height:12px;border-radius:50%;background:var(--ord);margin-right:6px}
+.ocard{border-left:4px solid var(--ord)}
+.ocard .od{font-size:13px;line-height:1.4;word-break:break-word}
+#ovOrdD{z-index:950}
+.odet{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.odet h4{margin:0 0 8px;font-size:14.5px;word-break:break-word}
+.odet dl{margin:0;display:grid;grid-template-columns:minmax(110px,auto) 1fr;gap:5px 12px;font-size:12.5px}
+.odet dt{color:var(--mut);font-weight:600}
+.odet dd{margin:0;word-break:break-word}
+@media (max-width:520px){.odet dl{grid-template-columns:1fr}.odet dd{margin-bottom:4px}}
+.ocard .btn{margin-top:auto;justify-content:center}
+.btn.ordb{border-color:var(--ord);color:var(--ord)}
+:root{--ord:#7c3aed}
+@media (prefers-color-scheme: dark){:root{--ord:#a78bfa}}
 
 /* Estado vazio */
 .empty{flex:1;display:flex;align-items:center;justify-content:center;padding:30px}
@@ -337,6 +354,11 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
     Importar Componentes
   </button>
+  <button type="button" class="btn light" id="btnPickO" title="Leitura somente local (não vai para o banco)">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    <span id="btnPickOTxt">Ler Ordens</span>
+  </button>
+  <input type="file" id="fileInO" accept=".xlsx,.xlsm,.xls,.xlsb" class="hidden">
   <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls,.xlsb" class="hidden">
   <input type="file" id="fileInC" accept=".xlsx,.xlsm,.xls,.xlsb" class="hidden">
 </header>
@@ -369,6 +391,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       <span><i class="lgr"></i>Componente atribuído</span>
       <span><i class="lv"></i>DF com valor</span>
       <span><i class="ln"></i>Data de Necessidade</span>
+      <span><i class="lo"></i>Ordem planejada</span>
     </div>
   </section>
 
@@ -429,6 +452,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
           <label class="sw"><input type="checkbox" id="optZero"> Somente equipamentos com DF = 0</label>
           <label class="sw"><input type="checkbox" id="optComp"> Somente paradas com componente no mês</label>
           <label class="sw"><input type="checkbox" id="optNec" checked> Projetar Data de Necessidade dos componentes</label>
+          <label class="sw"><input type="checkbox" id="optOrd" checked> Projetar Ordens planejadas (Base_Ordens_Projecao)</label>
           <label class="sw"><input type="checkbox" id="optCnt"> Mostrar contagem de equipamentos parados (DF = 0)</label>
         </div>
       </div>
@@ -463,6 +487,38 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       <button type="button" class="btn grn" id="cpAll">Atribuir todos</button>
       <button type="button" class="btn pri" id="cpOk">Fechar</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal de ordens -->
+<div class="ov" id="ovOrd">
+  <div class="mdl wide" role="dialog" aria-modal="true" aria-labelledby="orTit">
+    <div class="mdl-h">
+      <div>
+        <h3 id="orTit">Ordens planejadas</h3>
+        <div class="sub" id="orSub"></div>
+      </div>
+      <button type="button" class="x" id="orX" aria-label="Fechar">✕</button>
+    </div>
+    <div class="mdl-b scroll">
+      <div class="cgrid" id="orGrid" aria-live="polite"></div>
+    </div>
+    <div class="mdl-f">
+      <button type="button" class="btn" id="orExp">Detalhes de todas</button>
+      <button type="button" class="btn pri" id="orOk">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de detalhes das ordens -->
+<div class="ov" id="ovOrdD">
+  <div class="mdl" role="dialog" aria-modal="true" aria-labelledby="odTit">
+    <div class="mdl-h">
+      <div><h3 id="odTit">Detalhes da ordem</h3><div class="sub" id="odSub"></div></div>
+      <button type="button" class="x" id="odX" aria-label="Fechar">✕</button>
+    </div>
+    <div class="mdl-b scroll" id="odBody"></div>
+    <div class="mdl-f"><button type="button" class="btn pri" id="odOk">Voltar</button></div>
   </div>
 </div>
 
@@ -547,10 +603,16 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   const DF_ROWS = new Map();
   const LOADED = new Set();
   let HAS_DF = false;
+  let ORD = [], ordByEq = new Map(), ORD_INFO = null;   // Base_Ordens_Projecao (somente leitura local, não vai ao banco)
 
   /* =================== UTILIDADES =================== */
   const norm = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
   const clean = s => String(s ?? '').replace(/\s+/g,' ').trim();
+  // Nome da coluna: se vier como Tabela[Coluna], considera só o que está entre []
+  const colName = s => { const t = clean(s), m = /\[([^\]]+)\]\s*$/.exec(t); return m ? m[1].trim() : t; };
+  const hKey = s => norm(colName(s)).replace(/_/g,' ').replace(/\s+/g,' ').trim();
+  // Chave compacta: ignora espaços, _, -, pontos e acentos (ex.: "Data_Planejada" = "Data Planejada" = "DataPlanejada")
+  const cKey = s => norm(colName(s)).replace(/[^a-z0-9]/g,'');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const pad = n => String(n).padStart(2,'0');
   const fmtD = ms => { const d = new Date(ms); return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth()+1)}/${d.getUTCFullYear()}`; };
@@ -809,9 +871,13 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     const at = (r,c) => ws[XLSX.utils.encode_cell({r,c})];
     for (let r = rg.s.r; r <= Math.min(rg.e.r, rg.s.r + 40); r++){
       const cols = {};
-      for (let c = rg.s.c; c <= rg.e.c; c++){ const t = norm(cellText(at(r,c))); if (t && !(t in cols)) cols[t] = c; }
+      for (let c = rg.s.c; c <= rg.e.c; c++){ const t = cKey(cellText(at(r,c))); if (t && !(t in cols)) cols[t] = c; }
       const m = {};
-      for (const [k, v] of Object.entries(req)) if (v in cols) m[k] = cols[v];
+      for (const [k, v] of Object.entries(req)){
+        const alts = (Array.isArray(v) ? v : [v]).map(cKey);
+        const hit = alts.find(a => a in cols);
+        if (hit) m[k] = cols[hit];
+      }
       if (Object.keys(m).length === Object.keys(req).length) return {row:r, map:m, rg, at};
     }
     return null;
@@ -887,6 +953,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     if ($('ovMsg').classList.contains('show')){ $('ovMsg').classList.remove('show'); return; }
     if ($('ovImp').classList.contains('show')){ closeImp(); return; }
     if ($('ovComp').classList.contains('show')){ closeComp(); return; }
+    if ($('ovOrdD').classList.contains('show')){ closeOrdDet(); return; }
+    if ($('ovOrd').classList.contains('show')){ closeOrd(); return; }
     if ($('ovRes').classList.contains('show')){ $('ovRes').classList.remove('show'); return; }
     if ($('ovFlt').classList.contains('show')) closeFlt();
   });
@@ -1168,6 +1236,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   $('btnPickC2').addEventListener('click', () => pick('fileInC'));
   $('fileIn').addEventListener('change', e => { const f = e.target.files[0]; if (f) importDF(f); });
   $('fileInC').addEventListener('change', e => { const f = e.target.files[0]; if (f) importComp(f); });
+  $('btnPickO').addEventListener('click', () => pick('fileInO'));
+  $('fileInO').addEventListener('change', e => { const f = e.target.files[0]; if (f) importOrd(f); });
   const dz = $('dropZone');
   ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
   ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
@@ -1271,6 +1341,108 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       openImp();
     } catch(err){ hideLoad(); showMsg('Não foi possível ler a planilha', err.message || String(err)); }
   }
+
+  // ---------- Base_Ordens_Projecao (somente leitura local) ----------
+  const ORD_INT = new Set(['estrategia','ciclo','pacote']), ORD_DATE = new Set(['tolmindata','tolmaxdata']);
+  const REQ_O = {tag:['tag','equipamento'], dt:['data','data planejada','dia']};
+  const ORD_MAIN = [['tag','TAG'],['ordem','Ordem'],['ordem descricao','Ordem_Descricao'],['data planejada','Data_Planejada'],['plano','Plano'],['pacote','Pacote']];
+  async function importOrd(file){
+    try {
+      const wb = await readWb(file, 'Lendo Ordens...');
+      const so = findSheet(wb, 'Base_Ordens_Projecao', REQ_O);
+      if (!so) throw new Error('Não encontrei uma aba com as colunas:\nTAG e Data\n\nAbas disponíveis: ' + wb.SheetNames.join(', '));
+      const {row, map, rg, at} = so.h;
+      const hdr = [];
+      for (let c = rg.s.c; c <= rg.e.c; c++){
+        const raw = cellText(at(row, c)), lbl = colName(raw);
+        if (lbl) hdr.push({c, lbl, k: hKey(raw), ck: cKey(raw)});
+      }
+      const out = [], seen = new Set();
+      let dup = 0;
+      for (let r = row + 1; r <= rg.e.r; r++){
+        const tag = clean(cellText(at(r, map.tag)));
+        const dt = parseDia(at(r, map.dt));
+        if (!tag || dt == null) continue;
+        const f = {};
+        hdr.forEach(h => {
+          const cell = at(r, h.c);
+          let v;
+          if (h.c === map.dt) v = fmtD(dt);
+          else if (ORD_INT.has(h.ck)){
+            const raw = cell && typeof cell.v === 'number' ? cell.v : parseFloat(String(cellText(cell)).replace(/\./g,'').replace(',', '.'));
+            v = Number.isFinite(raw) ? String(Math.round(raw)) : clean(cellText(cell));
+          } else if (ORD_DATE.has(h.ck)){
+            const d = parseDia(cell);
+            v = d != null ? fmtD(d) : clean(cellText(cell));
+          } else v = clean(cellText(cell));
+          f[h.ck] = v;
+        });
+        const all = hdr.map(h => [h.lbl, f[h.ck]]);
+        const key = hdr.map(h => f[h.ck]).join('|');
+        if (seen.has(key)){ dup++; continue; }
+        seen.add(key);
+        out.push({id: 'o' + out.length, tag, dt, f, all});
+      }
+      if (!out.length) throw new Error('Nenhuma linha válida (TAG + Data_Planejada) foi encontrada.');
+      ORD = out; ordByEq = new Map();
+      ORD.forEach(o => { const k = norm(o.tag); if (!ordByEq.has(k)) ordByEq.set(k, []); ordByEq.get(k).push(o); });
+      const eqSet = new Set(EQ.map(q => norm(q.e)));
+      const semEq = [...ordByEq.keys()].filter(k => !eqSet.has(k)).length;
+      ORD_INFO = {arquivo: file.name, aba: so.name, n: ORD.length};
+      $('btnPickOTxt').textContent = `Ordens (${nf(ORD.length)})`;
+      $('optOrd').checked = true;
+      hideLoad();
+      render(true);
+      showMsg('Ordens carregadas', `${nf(ORD.length)} ordem(ns) lida(s) de "${so.name}".${dup ? `\nDuplicadas no arquivo (ignoradas): ${nf(dup)}` : ''}${semEq ? `\nTAGs sem equipamento no Programa de DF: ${nf(semEq)}` : ''}\n\nEsta leitura é somente local: não é enviada ao banco e some ao recarregar a página.`, true);
+    } catch(err){ hideLoad(); showMsg('Não foi possível ler a planilha', err.message || String(err)); }
+  }
+  let curOrd = [];
+  const ordVal = (o, k) => o.f[cKey(k)] || '—';
+  function openOrd(ids){
+    curOrd = ids.map(id => ORD.find(o => o.id === id)).filter(Boolean);
+    if (!curOrd.length) return;
+    const eqx = EQ.find(q => norm(q.e) === norm(curOrd[0].tag));
+    $('orTit').textContent = `Ordens planejadas · ${eqx ? eqx.e : curOrd[0].tag}`;
+    $('orSub').innerHTML = `${eqx ? `${esc(eqx.u)} › ${esc(eqx.c)} › ${esc(eqx.f)}<br>` : ''}Data planejada: <b>${fmtD(curOrd[0].dt)}</b> · ${curOrd.length} ordem(ns)`;
+    $('orGrid').innerHTML = curOrd.map(o => {
+      return `<div class="ccard ocard">
+        <h4>${esc(ordVal(o,'ordem'))}</h4>
+        <div class="od">${esc(ordVal(o,'ordem descricao'))}</div>
+        <dl>
+          <dt>TAG</dt><dd>${esc(o.tag)}</dd>
+          <dt>Data Planejada</dt><dd>${fmtD(o.dt)}</dd>
+          <dt>Plano</dt><dd>${esc(ordVal(o,'plano'))}</dd>
+          <dt>Pacote</dt><dd>${esc(ordVal(o,'pacote'))}</dd>
+        </dl>
+        <button type="button" class="btn sm ordb" data-act="det" data-id="${o.id}">Detalhes</button>
+      </div>`;
+    }).join('');
+    $('ovOrd').classList.add('show');
+  }
+  function closeOrd(){ $('ovOrd').classList.remove('show'); curOrd = []; }
+  $('orX').addEventListener('click', closeOrd);
+  $('orOk').addEventListener('click', closeOrd);
+  $('ovOrd').addEventListener('click', e => { if (e.target === $('ovOrd')) closeOrd(); });
+  function openOrdDet(list){
+    if (!list.length) return;
+    $('odTit').textContent = list.length === 1 ? `Detalhes da ordem ${ordVal(list[0],'ordem')}` : `Detalhes de ${list.length} ordens`;
+    $('odSub').textContent = `${list[0].tag} · Data planejada ${fmtD(list[0].dt)}`;
+    $('odBody').innerHTML = list.map(o => `<div class="odet">
+      <h4>${esc(ordVal(o,'ordem'))} · ${esc(ordVal(o,'ordem descricao'))}</h4>
+      <dl>${o.all.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v || '—')}</dd>`).join('')}</dl>
+    </div>`).join('');
+    $('odBody').scrollTop = 0;
+    $('ovOrdD').classList.add('show');
+  }
+  const closeOrdDet = () => $('ovOrdD').classList.remove('show');
+  $('odX').addEventListener('click', closeOrdDet);
+  $('odOk').addEventListener('click', closeOrdDet);
+  $('ovOrdD').addEventListener('click', e => { if (e.target === $('ovOrdD')) closeOrdDet(); });
+  $('orGrid').addEventListener('click', e => {
+    const b = e.target.closest('[data-act="det"]'); if (!b) return;
+    const o = ORD.find(x => x.id === b.dataset.id); if (o) openOrdDet([o]);
+  });
+  $('orExp').addEventListener('click', () => openOrdDet(curOrd));
 
   // ---------- Modal de verificação ----------
   let impTab = 'novas';
@@ -1462,11 +1634,11 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     let n = [msU,msC,msF,msE].filter(m => m.get().size).length;
     if (!isDefaultPeriod()) n++;
     ['optZero','optComp','optCnt'].forEach(id => { if ($(id).checked) n++; });
-    ['optVal','optNec'].forEach(id => { if (!$(id).checked) n++; });
+    ['optVal','optNec','optOrd'].forEach(id => { if (!$(id).checked) n++; });
     $('fltBadge').textContent = n;
     $('fltBadge').classList.toggle('hidden', !n);
   }
-  ['optVal','optZero','optComp','optNec','optCnt'].forEach(id => $(id).addEventListener('change', () => render()));
+  ['optVal','optZero','optComp','optNec','optCnt','optOrd'].forEach(id => $(id).addEventListener('change', () => render()));
   $('zoom').addEventListener('change', () => { document.documentElement.style.setProperty('--col', $('zoom').value + 'px'); render(); centerToday(); });
   $('btnExp').addEventListener('click', () => { collapsed.clear(); render(true); });
   $('btnCol').addEventListener('click', () => { groupIds.forEach(id => { if (id.split('\u0002').length === 1) collapsed.add(id); }); render(); });
@@ -1474,13 +1646,15 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     [msU,msC,msF,msE,msW].forEach(m => m.clear());
     cascade('u');
     setDefaultPeriod();
-    $('optZero').checked = false; $('optComp').checked = false; $('optCnt').checked = false; $('optVal').checked = true; $('optNec').checked = true;
+    $('optZero').checked = false; $('optComp').checked = false; $('optCnt').checked = false; $('optVal').checked = true; $('optNec').checked = true; $('optOrd').checked = true;
     periodChanged();
   });
 
   $('ginner').addEventListener('click', e => {
     const b = e.target.closest('.gbar');
     if (b){ openComp(b.dataset.ev); return; }
+    const ok = e.target.closest('.gord');
+    if (ok){ openOrd(ok.dataset.ord.split(',')); return; }
     const nk = e.target.closest('.gnec');
     if (nk){ openNec(nk.dataset.nec.split(',')); return; }
     const l = e.target.closest('.row.g .lbl'); if (!l) return;
@@ -1605,7 +1779,7 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     const W = n * colW;
     const seq = (a, b) => cols[b] - cols[a] === DAY;
     const U = msU.get(), C = msC.get(), F = msF.get(), E = msE.get();
-    const onlyZero = $('optZero').checked, onlyComp = $('optComp').checked, showVal = $('optVal').checked, showNec = $('optNec').checked;
+    const onlyZero = $('optZero').checked, onlyComp = $('optComp').checked, showVal = $('optVal').checked, showNec = $('optNec').checked, showOrd = $('optOrd').checked;
 
     const list = [];
     for (const eq of EQ){
@@ -1617,11 +1791,13 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
       }
       const necs = [];
       if (showNec) (compByEq.get(norm(eq.e)) || []).forEach(c => { const i = idx.get(c.nec); if (i != null) necs.push({i, c}); });
-      if (!cells.length && !necs.length) continue;
+      const ords = [];
+      if (showOrd) (ordByEq.get(norm(eq.e)) || []).forEach(o => { const i = idx.get(o.dt); if (i != null) ords.push({i, o}); });
+      if (!cells.length && !necs.length && !ords.length) continue;
       cells.sort((a,b) => a.i - b.i);
       if (onlyZero && !cells.some(c => c.zero)) continue;
       if (onlyComp && !cells.some(c => c.ev && evComps(c.ev).length)) continue;
-      list.push({eq, cells, necs});
+      list.push({eq, cells, necs, ords});
     }
     list.sort((a,b) => coll.compare(a.eq.u,b.eq.u) || coll.compare(a.eq.c,b.eq.c) || coll.compare(a.eq.f,b.eq.f) || coll.compare(a.eq.e,b.eq.e));
     LAST = {cols, list};
@@ -1720,6 +1896,12 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
         const col = sts.includes('blue') ? 'blue' : (sts.includes('amber') ? 'amber' : 'green');
         const tip = `${eq.e} · Necessidade ${fmtD(cols[i])}\n` + cs.map(c => `• ${c.comp || '(sem componente)'} — ${c.nome || '—'} [${COMP_LBL[compState(c)]}]`).join('\n');
         inner += `<button type="button" class="gnec ${col}" data-nec="${esc(cs.map(c => c.id).join(','))}" style="left:${i*colW + colW/2}px" title="${esc(tip)}"><span>${cs.length > 1 ? cs.length : ''}</span></button>`;
+      });
+      const oByDay = new Map();
+      (x.ords || []).forEach(oo => { if (!oByDay.has(oo.i)) oByDay.set(oo.i, []); oByDay.get(oo.i).push(oo.o); });
+      oByDay.forEach((os, i) => {
+        const tip = `${eq.e} · Ordens planejadas ${fmtD(cols[i])}\n` + os.map(o => `• ${ordVal(o,'ordem')} — ${ordVal(o,'ordem descricao')}`).join('\n') + '\nClique para ver as ordens';
+        inner += `<button type="button" class="gord" data-ord="${esc(os.map(o => o.id).join(','))}" style="left:${i*colW + colW - 9}px" title="${esc(tip)}" aria-label="${os.length} ordem(ns) em ${fmtD(cols[i])}">${os.length > 1 ? os.length : ''}</button>`;
       });
       rows += `<div class="row e"><div class="lbl" style="padding-left:${8 + 3*16 + 6}px"><span class="dot"></span><span class="nm" title="${esc(eq.u)} › ${esc(eq.c)} › ${esc(eq.f)} › ${esc(eq.e)}">${esc(eq.e)}</span></div><div class="tl" style="width:${W}px">${inner}</div></div>`;
     };
