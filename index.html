@@ -54,6 +54,9 @@ button,input,select{font:inherit;color:inherit}
 .btn:focus-visible,.ms-btn:focus-visible,input:focus-visible,select:focus-visible,.gbar:focus-visible,.gnec:focus-visible{outline:2px solid var(--pri2);outline-offset:2px}
 .btn.light{background:#fff;color:var(--pri);border-color:transparent}
 .btn.light:hover{background:#f0fbfa}
+.ordlbl{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;text-align:left}
+.ordlbl small{font-size:10.5px;font-weight:500;opacity:.75;white-space:nowrap}
+.ordlbl small.pend{color:#b45309;opacity:1}
 .btn.sm{padding:6px 10px;font-size:12.5px}
 .btn.pri{background:linear-gradient(120deg,var(--pri),var(--pri2));color:#fff;border:none;padding:10px 18px}
 .btn.pri:hover{filter:brightness(1.07);color:#fff}
@@ -354,9 +357,9 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
     Importar Componentes
   </button>
-  <button type="button" class="btn light" id="btnPickO" title="Leitura somente local (não vai para o banco)">
+  <button type="button" class="btn light" id="btnPickO" title="Lê a Base_Ordens_Projecao e substitui o arquivo de ordens no banco">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-    <span id="btnPickOTxt">Ler Ordens</span>
+    <span class="ordlbl"><span id="btnPickOTxt">Ler Ordens</span><small id="btnPickODt" class="hidden"></small></span>
   </button>
   <input type="file" id="fileInO" accept=".xlsx,.xlsm,.xls,.xlsb" class="hidden">
   <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls,.xlsb" class="hidden">
@@ -570,6 +573,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   const SB_URL = 'https://anptuyscbsqarvilzjcw.supabase.co';
   const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFucHR1eXNjYnNxYXJ2aWx6amN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2OTQ3MTUsImV4cCI6MjEwNjI3MDcxNX0.lvaPgaynu8bbne04q71CTeMpO39wcYOHrWKQEOvycO4';
   const T_DF = 'df_programa', T_CP = 'df_componentes', T_AT = 'df_atribuicoes', T_LT = 'df_lotes';
+  const T_OA = 'df_ordens_arquivo';   // arquivo Excel de ordens (substituído a cada leitura)
   const PAGE = 1000, BATCH = 500;
 
   const $ = id => document.getElementById(id);
@@ -603,7 +607,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   const DF_ROWS = new Map();
   const LOADED = new Set();
   let HAS_DF = false;
-  let ORD = [], ordByEq = new Map(), ORD_INFO = null;   // Base_Ordens_Projecao (somente leitura local, não vai ao banco)
+  let ORD = [], ordByEq = new Map(), ORD_INFO = null, ORD_B64 = null;   // Base_Ordens_Projecao (arquivo no banco, substituído a cada leitura)
 
   /* =================== UTILIDADES =================== */
   const norm = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
@@ -688,7 +692,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   var OUTBOX = [];                       // [{qid, tipo:'atribuir'|'remover'|'importar', payload, em, desc}]
   let syncing = false;
   const saveOutbox = () => { IDB.set('outbox', OUTBOX); try { localStorage.setItem('rmcp_outbox_n', String(OUTBOX.length)); } catch(e){} };
-  const saveSnap = () => IDB.set('snap', {em: Date.now(), df: DB_DF, cp: DB_CP, at: DB_AT, meses: [...LOADED], has: HAS_DF});
+  const saveSnap = () => IDB.set('snap', {em: Date.now(), df: DB_DF, cp: DB_CP, at: DB_AT, meses: [...LOADED], has: HAS_DF, ordFile: ORD_B64, ordInfo: ORD_INFO});
   function enqueue(tipo, payload, desc){
     OUTBOX.push({qid: Date.now() + '-' + Math.random().toString(36).slice(2, 7), tipo, payload, em: Date.now(), desc});
     saveOutbox();
@@ -697,6 +701,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   }
   async function runItem(it){
     const p = it.payload;
+    if (it.tipo === 'ordens') return sendOrdCache(p);
     if (it.tipo === 'atribuir') return rpc('rmcp_atribuir', {rows: p.rows});
     if (it.tipo === 'remover') return rpc('rmcp_remover_atribuicao', {ids: p.ids});
     if (it.tipo === 'importar'){
@@ -804,7 +809,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       let m = `${r.status} ${r.statusText}`, code = '';
       try { const j = await r.json(); code = j.code || ''; m = j.message || j.hint || j.details || m; } catch(e){}
       const e = new Error(m); e.status = r.status; e.code = code;
-      if (r.status === 404 || code === 'PGRST202') e.message = `Função "${fn}" não encontrada. Rode o SQL "supabase_rmcp_gravacao.sql" no Supabase.`;
+      if (r.status === 404 || code === 'PGRST202') e.message = `Função "${fn}" não encontrada. Rode o SQL "${fn.startsWith('rmcp_ordens') ? 'supabase_rmcp_ordens_arquivo.sql' : 'supabase_rmcp_gravacao.sql'}" no Supabase.`;
       throw e;
     }
     const t = await r.text();
@@ -1017,6 +1022,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       await fetchDF(cols, n => { cntDF = n; prog(); });
       const cp = await sbAll(T_CP, 'id,ativo,componente,nome_padrao,data_necessidade', n => { cntCP = n; prog(); });
       const at = await sbAll(T_AT, 'id,componente_id,equipamento,parada_inicio,parada_fim');
+      await loadOrdCache(t => { $('ldTxt').textContent = t; });
       DB_CP = cp; DB_AT = at; HAS_DF = !!(any && any.length) || DB_DF.length > 0;
       updChip();
       saveSnap();
@@ -1030,6 +1036,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
         DF_ROWS.clear(); LOADED.clear();
         snap.df.forEach(x => DF_ROWS.set(x.id, x)); (snap.meses || []).forEach(k => LOADED.add(k));
         DB_DF = snap.df; DB_CP = snap.cp; DB_AT = snap.at; HAS_DF = !!snap.has;
+        if (snap.ordFile){ try { loadOrdBytes(fromB64(snap.ordFile), snap.ordInfo); ORD_B64 = snap.ordFile; } catch(e){} }
         const d = new Date(snap.em);
         setDB(false, `Offline · dados de ${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`);
         buildAll();
@@ -1042,7 +1049,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       }
     } finally { hideLoad(); }
   }
-  function updChip(){ setDB(true, `Banco: ${nf(DB_DF.length)} DF no período · ${nf(DB_CP.length)} comp.`); }
+  function updChip(){ setDB(true, `Banco: ${nf(DB_DF.length)} DF no período · ${nf(DB_CP.length)} comp.${ORD.length ? ` · ${nf(ORD.length)} ordens` : ''}`); }
   let pcT = null, pcBusy = Promise.resolve();
   function periodChanged(){
     render(); centerToday();
@@ -1346,9 +1353,14 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   const ORD_INT = new Set(['estrategia','ciclo','pacote']), ORD_DATE = new Set(['tolmindata','tolmaxdata']);
   const REQ_O = {tag:['tag','equipamento'], dt:['data','data planejada','dia']};
   const ORD_MAIN = [['tag','TAG'],['ordem','Ordem'],['ordem descricao','Ordem_Descricao'],['data planejada','Data_Planejada'],['plano','Plano'],['pacote','Pacote']];
-  async function importOrd(file){
-    try {
-      const wb = await readWb(file, 'Lendo Ordens...');
+  /* ---------- Ordens: o ARQUIVO Excel fica salvo no banco e é substituído a cada leitura ---------- */
+  const ORD_MAX = 15 * 1024 * 1024;   // limite de segurança do arquivo (15 MB)
+  const ordPending = () => OUTBOX.some(it => it.tipo === 'ordens');
+  const fileBuf = file => new Promise((res, rej) => { const rd = new FileReader(); rd.onerror = () => rej(new Error('Não foi possível ler o arquivo selecionado.')); rd.onload = ev => res(new Uint8Array(ev.target.result)); rd.readAsArrayBuffer(file); });
+  function toB64(u8){ let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+  function fromB64(b){ const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+  // Lê o workbook e monta as ordens (mesma regra da leitura da planilha)
+  function parseOrdWb(wb){
       const so = findSheet(wb, 'Base_Ordens_Projecao', REQ_O);
       if (!so) throw new Error('Não encontrei uma aba com as colunas:\nTAG e Data\n\nAbas disponíveis: ' + wb.SheetNames.join(', '));
       const {row, map, rg, at} = so.h;
@@ -1384,17 +1396,95 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
         out.push({id: 'o' + out.length, tag, dt, f, all});
       }
       if (!out.length) throw new Error('Nenhuma linha válida (TAG + Data_Planejada) foi encontrada.');
-      ORD = out; ordByEq = new Map();
-      ORD.forEach(o => { const k = norm(o.tag); if (!ordByEq.has(k)) ordByEq.set(k, []); ordByEq.get(k).push(o); });
+    return {out, dup, so};
+  }
+  function applyOrd(out, info){
+    ORD = out || []; ORD_INFO = info || null; ordByEq = new Map();
+    ORD.forEach(o => { const k = norm(o.tag); if (!ordByEq.has(k)) ordByEq.set(k, []); ordByEq.get(k).push(o); });
+    $('btnPickOTxt').textContent = ORD.length ? `Ordens (${nf(ORD.length)})` : 'Ler Ordens';
+    updOrdDt();
+    const quando = ORD_INFO && ORD_INFO.atualizado_em ? new Date(ORD_INFO.atualizado_em).toLocaleString('pt-BR') : '';
+    $('btnPickO').title = ORD_INFO ? `Arquivo no banco: ${ORD_INFO.arquivo || ''}${quando ? ' · ' + quando : ''}\nClique para ler nova planilha e substituir o arquivo` : 'Lê a Base_Ordens_Projecao e substitui o arquivo de ordens no banco';
+  }
+  // Abre o arquivo (bytes) e aplica as ordens
+  function loadOrdBytes(u8, info){
+    if (typeof XLSX === 'undefined') return false;
+    const r = parseOrdWb(XLSX.read(u8, {type:'array'}));
+    applyOrd(r.out, info);
+    return r;
+  }
+
+  // Mostra no botão a data/hora da última atualização do arquivo de ordens
+  function updOrdDt(){
+    const el = $('btnPickODt'); if (!el) return;
+    const dt = ORD_INFO && ORD_INFO.atualizado_em ? new Date(ORD_INFO.atualizado_em) : null;
+    if (!dt || isNaN(dt)){ el.classList.add('hidden'); el.textContent = ''; return; }
+    const pend = ordPending();
+    el.textContent = `${pend ? 'Aguardando envio · ' : 'Atualizado em '}${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    el.classList.toggle('pend', pend);
+    el.classList.remove('hidden');
+  }
+  async function importOrd(file){
+    try {
+      if (file.size > ORD_MAX) throw new Error(`Arquivo muito grande (${(file.size/1048576).toFixed(1)} MB). Limite: ${ORD_MAX/1048576} MB.`);
+      if (typeof XLSX === 'undefined') throw new Error('Não foi possível carregar o leitor de Excel. Verifique a conexão com a internet e recarregue a página.');
+      showLoad('Lendo Ordens...');
+      const u8 = await fileBuf(file);
+      await sleep(30);
+      const info = {arquivo: file.name, tamanho: u8.length, atualizado_em: new Date().toISOString()};
+      const {dup, so} = loadOrdBytes(u8, info);
+      ORD_B64 = toB64(u8);
       const eqSet = new Set(EQ.map(q => norm(q.e)));
       const semEq = [...ordByEq.keys()].filter(k => !eqSet.has(k)).length;
-      ORD_INFO = {arquivo: file.name, aba: so.name, n: ORD.length};
-      $('btnPickOTxt').textContent = `Ordens (${nf(ORD.length)})`;
       $('optOrd').checked = true;
-      hideLoad();
       render(true);
-      showMsg('Ordens carregadas', `${nf(ORD.length)} ordem(ns) lida(s) de "${so.name}".${dup ? `\nDuplicadas no arquivo (ignoradas): ${nf(dup)}` : ''}${semEq ? `\nTAGs sem equipamento no Programa de DF: ${nf(semEq)}` : ''}\n\nEsta leitura é somente local: não é enviada ao banco e some ao recarregar a página.`, true);
-    } catch(err){ hideLoad(); showMsg('Não foi possível ler a planilha', err.message || String(err)); }
+      const resumo = `${nf(ORD.length)} ordem(ns) lida(s) de "${so.name}".${dup ? `\nDuplicadas no arquivo (ignoradas): ${nf(dup)}` : ''}${semEq ? `\nTAGs sem equipamento no Programa de DF: ${nf(semEq)}` : ''}`;
+      $('ldTxt').textContent = `Enviando arquivo ao banco (${(u8.length/1024).toFixed(0)} KB)...`;
+      const st = await saveOrdFile(ORD_B64, info);
+      hideLoad(); updChip(); updOrdDt();
+      if (st === 'ok') showMsg('Arquivo de ordens atualizado', `${resumo}\n\nO arquivo "${file.name}" substituiu o anterior no banco. Ao abrir o app, ele é baixado e lido automaticamente.`, true);
+      else showMsg('Arquivo de ordens salvo offline', `${resumo}\n\nSem sinal: as ordens já aparecem no Gantt e o arquivo será enviado ao banco automaticamente quando a conexão voltar.`, true);
+    } catch(err){ hideLoad(); showMsg(err.ordCache ? 'Ordens lidas, mas o arquivo não foi salvo no banco' : 'Não foi possível ler a planilha', err.message || String(err)); }
+  }
+  // Baixa o arquivo do banco só se mudou (compara a data de atualização)
+  async function loadOrdCache(onTxt){
+    if (ordPending()) return;
+    try {
+      const inf = await sb(`${T_OA}?select=arquivo,tamanho,atualizado_em&id=eq.1`);
+      const i = inf && inf[0];
+      if (!i){ applyOrd([], null); ORD_B64 = null; return; }
+      if (ORD_INFO && ORD_INFO.atualizado_em === i.atualizado_em && ORD.length) return;   // já está atualizado
+      if (onTxt) onTxt(`Baixando arquivo de ordens (${((i.tamanho||0)/1024).toFixed(0)} KB)...`);
+      const d = await sb(`${T_OA}?select=conteudo&id=eq.1`);
+      if (!d || !d[0] || !d[0].conteudo) return;
+      if (onTxt) onTxt('Lendo arquivo de ordens...');
+      await sleep(20);
+      loadOrdBytes(fromB64(d[0].conteudo), i);
+      ORD_B64 = d[0].conteudo;
+    } catch(err){
+      if (err.net) throw err;   // sem rede: segue o fluxo offline normal
+      console.warn('Arquivo de ordens indisponível:', err.message || err, '— rode o SQL "supabase_rmcp_ordens_arquivo.sql".');
+    }
+  }
+  async function sendOrdCache(p){
+    const r = await rpc('rmcp_ordens_arquivo_salvar', {arquivo: p.info.arquivo, tamanho: p.info.tamanho, conteudo: p.b64});
+    if (r && r.atualizado_em && ORD_INFO && ORD_INFO.arquivo === p.info.arquivo) ORD_INFO.atualizado_em = r.atualizado_em;
+    saveSnap();
+    setTimeout(updOrdDt, 0);
+  }
+  async function saveOrdFile(b64, info){
+    // uma nova leitura descarta envios de ordens ainda pendentes (exceto o que estiver em andamento)
+    OUTBOX = OUTBOX.filter((it, i) => it.tipo !== 'ordens' || (syncing && i === 0));
+    saveOutbox(); setDB(DB_OK);
+    const payload = {info, b64};
+    const desc = `Arquivo de ordens — ${info.arquivo} (${(info.tamanho/1024).toFixed(0)} KB)`;
+    if (OUTBOX.length){ enqueue('ordens', payload, desc); saveSnap(); return 'offline'; }
+    try { await sendOrdCache(payload); return 'ok'; }
+    catch(err){
+      if (err.net){ enqueue('ordens', payload, desc); saveSnap(); return 'offline'; }
+      saveSnap();
+      const e = new Error(`${err.message || err}\n\nAs ordens lidas continuam exibidas neste navegador, mas o arquivo do banco não foi alterado.`); e.ordCache = true; throw e;
+    }
   }
   let curOrd = [];
   const ordVal = (o, k) => o.f[cKey(k)] || '—';
