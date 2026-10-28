@@ -301,6 +301,12 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
 .rs-bar.red{background:var(--zero)} .rs-bar.blue{background:var(--blue)} .rs-bar.green{background:var(--green)}
 .rs-bar:hover{filter:brightness(1.1)}
 .rs-nec{position:absolute;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;transform:rotate(45deg);border:1.5px solid #fff;border-radius:2px;padding:0;cursor:pointer;z-index:2}
+.rs-ord{position:absolute;bottom:2px;min-width:12px;height:12px;margin-left:-6px;padding:0 3px;border-radius:999px;border:1.5px solid #fff;background:var(--ord);color:#fff;font-size:8px;font-weight:800;line-height:1;cursor:pointer;z-index:3;display:inline-flex;align-items:center;justify-content:center}
+.rs-ord:hover{transform:scale(1.25)}
+.rs-card.rs-oc{background:color-mix(in srgb, var(--ord) 9%, var(--bg))}
+.rs-st.ord{background:var(--ord);color:#fff}
+.rs-kpi.o b{color:var(--ord)} .rs-chips .o{color:var(--ord)}
+.rs-leg i.oc{width:11px;height:11px;border-radius:50%;background:var(--ord)}
 .rs-nec.blue{background:var(--blue)} .rs-nec.green{background:var(--green)} .rs-nec.amber{background:var(--amber)}
 .rs-none{padding:14px;color:var(--mut);font-size:12.5px;text-align:center}
 .rs-ch{margin:14px 0 8px;font-size:12px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
@@ -2024,7 +2030,7 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
   }
 
   /* =================== RESUMO EXECUTIVO =================== */
-  const PC = {red:'E5484D', blue:'1D6FE0', green:'16A34A', amber:'D4A017', teal:'0B7A75', txt:'1C2433', mut:'6A7487', line:'E2E7EF', soft:'F6F9FC'};
+  const PC = {red:'E5484D', blue:'1D6FE0', green:'16A34A', amber:'D4A017', teal:'0B7A75', txt:'1C2433', mut:'6A7487', line:'E2E7EF', soft:'F6F9FC', ord:'7C3AED'};
   const pcPct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
   let RES = null;
   function evStatus(ev){
@@ -2033,7 +2039,7 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     if (col === 'blue') return {col:'blue', lbl:'Não atribuído'};
     return {col:'red', lbl:'Sem componente no mês'};
   }
-  const newGroup = (u, c, n) => ({u, c, nEq:0, rows:[], dias:0, evs:new Set(), perDay:new Array(n).fill(0), semPar:[]});
+  const newGroup = (u, c, n) => ({u, c, nEq:0, rows:[], dias:0, evs:new Set(), perDay:new Array(n).fill(0), semPar:[], ords:[]});
 
   function summarize(){
     const {cols, list} = LAST, n = cols.length;
@@ -2052,7 +2058,10 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
       });
       bars.forEach(b => { b.col = evColor(b.ev) || 'red'; });
       const necs = x.necs.map(nn => ({i:nn.i, c:nn.c, col:compState(nn.c)}));
-      if (bars.length || necs.length) g.rows.push({eq, bars, necs});
+      const ob = new Map();
+      (x.ords || []).forEach(oo => { if (!ob.has(oo.i)) ob.set(oo.i, []); ob.get(oo.i).push(oo.o); g.ords.push({o: oo.o, eq}); });
+      const ords = [...ob].map(([i, os]) => ({i, os}));
+      if (bars.length || necs.length || ords.length) g.rows.push({eq, bars, necs, ords});
     });
     // Componentes sem parada programada com Data de Necessidade no range do filtro
     const colSet = new Set(cols);
@@ -2074,7 +2083,7 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
       });
     }
     const groups = [];
-    const tot = {nEq:0, eqZ:0, dias:0, nEv:0, nB:0, nG:0, nComp:0, nAs:0, nSP:0, nCP:0};
+    const tot = {nEq:0, eqZ:0, dias:0, nEv:0, nB:0, nG:0, nComp:0, nAs:0, nSP:0, nCP:0, nOrd:0, eqOrd:0};
     const SEMDF = '(sem Programa de DF)';
     [...units.keys()].sort((a,b) => (a === SEMDF) - (b === SEMDF) || coll.compare(a, b)).forEach(u => {
       const cm = units.get(u);
@@ -2099,8 +2108,12 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
         g.evList.forEach(ev => evComps(ev).forEach(c => g.comPar.push({c, ev})));
         g.comPar.sort((a,b) => a.c.nec - b.c.nec || coll.compare(a.ev.eq.e, b.ev.eq.e));
         g.nCP = g.comPar.length;
+        g.ords.sort((a,b) => a.o.dt - b.o.dt || coll.compare(a.eq.e, b.eq.e) || coll.compare(ordVal(a.o,'ordem'), ordVal(b.o,'ordem')));
+        g.nOrd = g.ords.length; g.eqOrd = new Set(g.ords.map(x => norm(x.eq.e))).size;
+        // ordens que caem dentro de uma parada (DF = 0)
+        g.ordPar = g.ords.filter(({o, eq}) => { const r = g.rows.find(rr => rr.eq === eq); const i = cols.indexOf(o.dt); return r && r.bars.some(b => i >= b.s && i <= b.e); }).length;
         g.text = groupText(g);
-        ['nEq','eqZ','dias','nEv','nB','nG','nComp','nAs','nSP','nCP'].forEach(k => tot[k] += g[k]);
+        ['nEq','eqZ','dias','nEv','nB','nG','nComp','nAs','nSP','nCP','nOrd','eqOrd'].forEach(k => tot[k] += g[k]);
         groups.push(g);
       });
     });
@@ -2109,7 +2122,10 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
 
   function groupText(g){
     const t = [];
-    const spTxt = () => { if (g.nSP) t.push(`${g.nSP} componente(s) com Data de Necessidade no período sem parada programada (sem DF = 0 no mês) — avaliar programação.`); };
+    const spTxt = () => {
+      if (g.nSP) t.push(`${g.nSP} componente(s) com Data de Necessidade no período sem parada programada (sem DF = 0 no mês) — avaliar programação.`);
+      if (g.nOrd) t.push(`${g.nOrd} ordem(ns) planejada(s) no período em ${g.eqOrd} equipamento(s)${g.ordPar ? `; ${g.ordPar} coincide(m) com parada (DF = 0)` : ''}${g.nOrd - g.ordPar > 0 ? `; ${g.nOrd - g.ordPar} fora de parada programada` : ''}.`);
+    };
     if (!g.eqZ){
       t.push(g.nEq ? `Nenhum dos ${g.nEq} equipamento(s) teve DF = 0 no período.` : 'Sem Programa de DF no período para estes equipamentos.');
       spTxt(); return t;
@@ -2144,7 +2160,7 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     const rows = g.rows.map(r => `<div class="rs-row"><div class="rs-lb" title="${esc(r.eq.f)} › ${esc(r.eq.e)}">${esc(r.eq.e)}</div><div class="rs-tr">${shade}${today}${
       r.bars.map(b => { const len = b.e - b.s + 1;
         return `<button type="button" class="rs-bar ${b.col}" data-ev="${esc(b.ev.id)}" style="left:${b.s*w}%;width:${len*w}%" title="${esc(r.eq.e)} · ${fmtD(cols[b.s])}${len > 1 ? ' a ' + fmtD(cols[b.e]) : ''} (${len}d)">${len > 1 ? len + 'd' : ''}</button>`; }).join('')
-    }${r.necs.map(nn => `<button type="button" class="rs-nec ${nn.col}" data-nec="${esc(nn.c.id)}" style="left:${(nn.i + .5)*w}%" title="${esc(`${nn.c.comp || '(sem componente)'} — ${nn.c.nome || '—'}\nNecessidade ${fmtD(nn.c.nec)} · ${COMP_LBL[nn.col]}`)}"></button>`).join('')}</div></div>`).join('');
+    }${r.necs.map(nn => `<button type="button" class="rs-nec ${nn.col}" data-nec="${esc(nn.c.id)}" style="left:${(nn.i + .5)*w}%" title="${esc(`${nn.c.comp || '(sem componente)'} — ${nn.c.nome || '—'}\nNecessidade ${fmtD(nn.c.nec)} · ${COMP_LBL[nn.col]}`)}"></button>`).join('')}${(r.ords || []).map(oo => `<button type="button" class="rs-ord" data-ord="${esc(oo.os.map(o => o.id).join(','))}" style="left:${(oo.i + .5)*w}%" title="${esc(`${r.eq.e} · Ordens planejadas ${fmtD(cols[oo.i])}\n` + oo.os.map(o => `• ${ordVal(o,'ordem')} — ${ordVal(o,'ordem descricao')}`).join('\n'))}">${oo.os.length > 1 ? oo.os.length : ''}</button>`).join('')}</div></div>`).join('');
     return `<div class="rs-gt"><div class="rs-row rs-hd rs-wkr"><div class="rs-lb">Semana</div><div class="rs-tr">${wks}</div></div><div class="rs-row rs-hd"><div class="rs-lb">Equipamento</div><div class="rs-tr">${hdr}</div></div>${rows || '<div class="rs-none">Nenhum equipamento com DF = 0 no período.</div>'}</div>`;
   }
   function evCards(g){
@@ -2187,6 +2203,16 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
         <div class="rs-ci">Sem DF = 0 programado no mês da necessidade.</div>
       </button>`).join('')}</div>`;
   }
+  function ordCards(g){
+    if (!g.nOrd) return '';
+    return `<div class="rs-ch">Ordens planejadas (${g.nOrd})</div><div class="rs-cards">${g.ords.map(({o, eq}) => `
+      <button type="button" class="rs-card rs-oc" data-ord="${esc(o.id)}" title="Clique para ver a ordem">
+        <div class="rs-ct"><b>${esc(eq.e)}</b><span class="rs-st ord">Ordem ${esc(ordVal(o,'ordem'))}</span></div>
+        <div class="rs-cp">● Data planejada: ${fmtD(o.dt)}</div>
+        <div><b>${esc(ordVal(o,'ordem descricao'))}</b></div>
+        <div class="rs-cf">${esc(eq.f)} · Plano ${esc(ordVal(o,'plano'))} · Pacote ${esc(ordVal(o,'pacote'))}</div>
+      </button>`).join('')}</div>`;
+  }
   function renderResumo(){
     RES = summarize();
     const {cols, groups, tot} = RES, n = cols.length;
@@ -2194,20 +2220,21 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     const k = (l, v, cls) => `<div class="rs-kpi ${cls||''}"><b>${v}</b><small>${l}</small></div>`;
     let h = `<div class="rs-kpis">
       ${k('Equipamentos', tot.nEq)}${k('Equip. com DF = 0', tot.eqZ, 'r')}${k('Dias DF = 0', tot.dias, 'r')}
-      ${k('Paradas', tot.nEv)}${k('Paradas c/ componente', tot.nB, 'b')}${k('Paradas atribuídas', `${tot.nG} <em>${pcPct(tot.nG, tot.nB)}</em>`, 'g')}${k('Comp. com parada', tot.nCP, 'b')}${k('Comp. sem parada', tot.nSP, 'a')}</div>
-      <div class="rs-leg"><span><i style="background:#E5484D"></i>DF = 0 sem componente</span><span><i style="background:#1D6FE0"></i>Parada mais próxima da necessidade</span><span><i style="background:#16A34A"></i>Componente atribuído</span><span><i class="dm" style="background:#1D6FE0"></i>Necessidade vinculada à parada</span><span><i class="dm" style="background:#16A34A"></i>Necessidade atribuída</span><span><i class="dm" style="background:#D4A017"></i>Componente sem parada programada</span><span><i class="tdl"></i>Hoje</span></div>
-      <p class="rs-note">Barras = dias consecutivos com DF = 0 (parada). Clique em uma barra, losango ou card para ver os componentes.</p>`;
+      ${k('Paradas', tot.nEv)}${k('Paradas c/ componente', tot.nB, 'b')}${k('Paradas atribuídas', `${tot.nG} <em>${pcPct(tot.nG, tot.nB)}</em>`, 'g')}${k('Comp. com parada', tot.nCP, 'b')}${k('Comp. sem parada', tot.nSP, 'a')}${ORD.length ? k('Ordens planejadas', tot.nOrd, 'o') : ''}</div>
+      <div class="rs-leg"><span><i style="background:#E5484D"></i>DF = 0 sem componente</span><span><i style="background:#1D6FE0"></i>Parada mais próxima da necessidade</span><span><i style="background:#16A34A"></i>Componente atribuído</span><span><i class="dm" style="background:#1D6FE0"></i>Necessidade vinculada à parada</span><span><i class="dm" style="background:#16A34A"></i>Necessidade atribuída</span><span><i class="dm" style="background:#D4A017"></i>Componente sem parada programada</span>${ORD.length ? '<span><i class="oc"></i>Ordem planejada</span>' : ''}<span><i class="tdl"></i>Hoje</span></div>
+      <p class="rs-note">Barras = dias consecutivos com DF = 0 (parada). Clique em uma barra, losango, círculo ou card para ver os detalhes.</p>`;
     if (!groups.length) h += '<div class="cempty">Nenhum dado para os filtros selecionados.</div>';
     let lastU = null;
     groups.forEach(g => {
       if (g.u !== lastU){ h += `<h3 class="rs-u">${esc(g.u)}</h3>`; lastU = g.u; }
       h += `<section class="rs-g">
         <div class="rs-gh"><h4>${esc(g.u)} › ${esc(g.c)}</h4>
-          <div class="rs-chips"><span>${g.eqZ}/${g.nEq} equip.</span><span class="r">${g.dias} dias DF 0</span><span>${g.nEv} paradas</span><span class="b">${g.nB} c/ comp.</span><span class="g">${g.nG} atrib. (${pcPct(g.nG, g.nB)})</span>${g.nSP ? `<span class="a">${g.nSP} sem parada</span>` : ''}</div></div>
+          <div class="rs-chips"><span>${g.eqZ}/${g.nEq} equip.</span><span class="r">${g.dias} dias DF 0</span><span>${g.nEv} paradas</span><span class="b">${g.nB} c/ comp.</span><span class="g">${g.nG} atrib. (${pcPct(g.nG, g.nB)})</span>${g.nSP ? `<span class="a">${g.nSP} sem parada</span>` : ''}${g.nOrd ? `<span class="o">${g.nOrd} ordens</span>` : ''}</div></div>
         ${g.rows.length || g.nEq ? `<div class="rs-body">${miniGantt(g, cols)}<ul class="rs-txt">${g.text.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>` : `<ul class="rs-txt">${g.text.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`}
         ${evCards(g)}
         ${cpCards(g)}
         ${spCards(g)}
+        ${ordCards(g)}
       </section>`;
     });
     $('rsBody').innerHTML = h;
@@ -2216,6 +2243,7 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
   $('btnRes').addEventListener('click', openResumo);
   $('rsX').addEventListener('click', () => $('ovRes').classList.remove('show'));
   $('rsBody').addEventListener('click', e => {
+    const oc = e.target.closest('.rs-ord, .rs-oc'); if (oc){ openOrd(oc.dataset.ord.split(',')); return; }
     const nk = e.target.closest('.rs-nec, .rs-card.amber, .rs-cc'); if (nk){ openNec([nk.dataset.nec]); return; }
     const b = e.target.closest('.rs-bar, .rs-card'); if (b) openComp(b.dataset.ev);
   });
@@ -2265,12 +2293,17 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
         const sz = Math.min(0.17, rowH * 0.55);
         s.addShape(pptx.ShapeType.diamond, {x: gx + (nc.i + 0.5)*dw - sz/2, y: ry + rowH/2 - sz/2, w: sz, h: sz, fill:{color:PC[nc.col]}, line:{color:'FFFFFF', width:0.75}});
       });
+      (r.ords || []).forEach(oo => {
+        const sz = Math.min(0.15, rowH * 0.45), cx = gx + (oo.i + 0.5)*dw, cy = ry + rowH - sz/2 - 0.02;
+        s.addShape(pptx.ShapeType.ellipse, {x: cx - sz/2, y: cy - sz/2, w: sz, h: sz, fill:{color:PC.ord}, line:{color:'FFFFFF', width:0.75}});
+        if (oo.os.length > 1 && sz >= 0.12) s.addText(String(oo.os.length), {x: cx - sz/2, y: cy - sz/2, w: sz, h: sz, fontFace:F, fontSize:5.5, bold:true, color:'FFFFFF', align:'center', valign:'middle', margin:0});
+      });
     });
     const ti = cols.indexOf(todayMs());
     if (ti >= 0) s.addShape(pptx.ShapeType.line, {x: gx + (ti + 0.5)*dw, y: Y + mH + wH, w: 0, h: dH + bodyH, line:{color:'0FA39A', width:1.5, dashType:'dash'}});
   }
   function pptLegend(pptx, s, x, y, w){
-    const F = 'Segoe UI', H = 0.21;
+    const F = 'Segoe UI', H = 0.19;
     const txt = (t, i) => s.addText(t, {x: x + 0.4, y: y + i*H, w: w - 0.4, h: H, fontFace:F, fontSize:8.5, color:PC.txt, valign:'middle', margin:0});
     [['red','DF = 0 sem componente'],['blue','Parada mais próxima da necessidade'],['green','Componente atribuído']].forEach(([c, t], i) => {
       s.addShape(pptx.ShapeType.roundRect, {x, y: y + i*H + 0.04, w: 0.32, h: 0.13, fill:{color:PC[c]}, line:{color:PC[c], width:0}, rectRadius:0.03});
@@ -2283,6 +2316,10 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     });
     s.addShape(pptx.ShapeType.line, {x: x + 0.16, y: y + 6*H + 0.02, w: 0, h: 0.17, line:{color:'0FA39A', width:1.5, dashType:'dash'}});
     txt('Hoje', 6);
+    if (ORD.length){
+      s.addShape(pptx.ShapeType.ellipse, {x: x + 0.09, y: y + 7*H + 0.03, w: 0.13, h: 0.13, fill:{color:PC.ord}, line:{color:'FFFFFF', width:0.5}});
+      txt('Ordem planejada', 7);
+    }
   }
 
   async function exportPPT(){
@@ -2427,6 +2464,23 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
             s.addText(`Necessidade: ${fmtD(c.nec)}`, {x: x + 0.12, y: y + 0.42, w: CW - 0.24, h:0.26, fontFace:F, fontSize:9.5, bold:true, color:PC.txt, margin:0});
             s.addText(`Frota: ${eq.f}`, {x: x + 0.12, y: y + 0.66, w: CW - 0.24, h:0.22, fontFace:F, fontSize:8, color:PC.mut, margin:0, fit:'shrink'});
             s.addText([{text: c.comp || '(sem componente)', options:{bold:true, breakLine:true}}, {text: c.nome || '—'}],
+              {x: x + 0.1, y: y + 0.9, w: CW - 0.2, h: CH - 0.96, fontFace:F, fontSize:8.5, color:PC.txt, valign:'top', margin:2, fit:'shrink'});
+          });
+          footer(s);
+        }
+        // Cards das ordens planejadas
+        for (let k = 0; k < g.nOrd; k += PER){
+          const s = pptx.addSlide(), part = g.ords.slice(k, k + PER), tp = Math.ceil(g.nOrd / PER);
+          title(s, `${g.u} › ${g.c} · Ordens planejadas${tp > 1 ? `  (${k/PER + 1}/${tp})` : ''}`, `Base_Ordens_Projecao${ORD_INFO && ORD_INFO.atualizado_em ? ` · atualizada em ${new Date(ORD_INFO.atualizado_em).toLocaleString('pt-BR')}` : ''}`, PC.ord);
+          part.forEach(({o, eq}, j) => {
+            const x = 0.4 + (j % 4) * (CW + 0.15), y = 1.15 + Math.floor(j / 4) * (CH + 0.12);
+            s.addShape(pptx.ShapeType.roundRect, {x, y, w:CW, h:CH, fill:{color:'F3EEFD'}, line:{color:PC.line, width:0.75}, rectRadius:0.08});
+            s.addText(eq.e, {x: x + 0.12, y: y + 0.08, w: CW - 1.45, h:0.3, fontFace:F, fontSize:11.5, bold:true, color:PC.txt, margin:0, fit:'shrink'});
+            s.addShape(pptx.ShapeType.roundRect, {x: x + CW - 1.3, y: y + 0.1, w:1.18, h:0.26, fill:{color:PC.ord}, line:{color:PC.ord, width:0}, rectRadius:0.12});
+            s.addText(String(ordVal(o,'ordem')), {x: x + CW - 1.3, y: y + 0.1, w:1.18, h:0.26, fontFace:F, fontSize:7.5, bold:true, color:'FFFFFF', align:'center', valign:'middle', margin:0, fit:'shrink'});
+            s.addText(`Data planejada: ${fmtD(o.dt)}`, {x: x + 0.12, y: y + 0.42, w: CW - 0.24, h:0.26, fontFace:F, fontSize:9.5, bold:true, color:PC.txt, margin:0});
+            s.addText(`Frota: ${eq.f}`, {x: x + 0.12, y: y + 0.66, w: CW - 0.24, h:0.22, fontFace:F, fontSize:8, color:PC.mut, margin:0, fit:'shrink'});
+            s.addText([{text: ordVal(o,'ordem descricao'), options:{bold:true, breakLine:true}}, {text:`Plano: ${ordVal(o,'plano')} · Pacote: ${ordVal(o,'pacote')}`, options:{color:PC.mut}}],
               {x: x + 0.1, y: y + 0.9, w: CW - 0.2, h: CH - 0.96, fontFace:F, fontSize:8.5, color:PC.txt, valign:'top', margin:2, fit:'shrink'});
           });
           footer(s);
