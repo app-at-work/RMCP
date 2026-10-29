@@ -183,8 +183,18 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
 @media (max-width:520px){.odet dl{grid-template-columns:1fr}.odet dd{margin-bottom:4px}}
 .ocard .btn{margin-top:auto;justify-content:center}
 .btn.ordb{border-color:var(--ord);color:var(--ord)}
-:root{--ord:#7c3aed}
-@media (prefers-color-scheme: dark){:root{--ord:#a78bfa}}
+:root{--ord:#7c3aed;--rec:#ea580c}
+@media (prefers-color-scheme: dark){:root{--ord:#a78bfa;--rec:#fb923c}}
+.grec{position:absolute;top:2px;min-width:16px;height:16px;padding:0 4px;border-radius:5px;border:2px solid #fff;background:var(--rec);color:#fff;font-size:9px;font-weight:800;line-height:1;cursor:pointer;z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.3);display:inline-flex;align-items:center;justify-content:center}
+.grec svg{width:8px;height:8px;fill:#fff;display:block}
+.grec:hover{transform:scale(1.2);z-index:4}
+.grec:focus-visible{outline:2px solid var(--pri2);outline-offset:2px}
+.legend .lr{width:12px;height:12px;border-radius:4px;background:var(--rec);margin-right:6px}
+.rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.rcard{border-left:4px solid var(--rec)}
+.rcard .rtxt{font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.btn.recb{border-color:var(--rec);color:var(--rec)}
+.itbl td.rc-c{white-space:pre-wrap}
 
 /* Estado vazio */
 .empty{flex:1;display:flex;align-items:center;justify-content:center;padding:30px}
@@ -367,6 +377,11 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
     <span class="ordlbl"><span id="btnPickOTxt">Ler Ordens</span><small id="btnPickODt" class="hidden"></small></span>
   </button>
+  <button type="button" class="btn light" id="btnPickR" title="Lê a aba Consolidado (Equipamento, Data, Comentário) e envia as Recomendações ao banco">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18"/><path d="M5 4h13l-2.5 4L18 12H5"/></svg>
+    <span class="ordlbl"><span id="btnPickRTxt">Importar Recomendações</span></span>
+  </button>
+  <input type="file" id="fileInR" accept=".xlsx,.xlsm,.xls,.xlsb" class="hidden">
   <input type="file" id="fileInO" accept=".xlsx,.xlsm,.xls,.xlsb" class="hidden">
   <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls,.xlsb" class="hidden">
   <input type="file" id="fileInC" accept=".xlsx,.xlsm,.xls,.xlsb" class="hidden">
@@ -401,6 +416,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       <span><i class="lv"></i>DF com valor</span>
       <span><i class="ln"></i>Data de Necessidade</span>
       <span><i class="lo"></i>Ordem planejada</span>
+      <span><i class="lr"></i>Recomendação</span>
     </div>
   </section>
 
@@ -461,7 +477,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
           <label class="sw"><input type="checkbox" id="optZero"> Somente equipamentos com DF = 0</label>
           <label class="sw"><input type="checkbox" id="optComp"> Somente paradas com componente no mês</label>
           <label class="sw"><input type="checkbox" id="optNec" checked> Projetar Data de Necessidade dos componentes</label>
-          <label class="sw"><input type="checkbox" id="optOrd" checked> Projetar Ordens planejadas (Base_Ordens_Projecao)</label>
+          <label class="sw"><input type="checkbox" id="optOrd" checked> Projetar Ordens planejadas (Base_Ordens_Projecao · a partir do próximo mês)</label>
+          <label class="sw"><input type="checkbox" id="optRec" checked> Projetar Recomendações (aba Consolidado)</label>
           <label class="sw"><input type="checkbox" id="optCnt"> Mostrar contagem de equipamentos parados (DF = 0)</label>
         </div>
       </div>
@@ -531,6 +548,24 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   </div>
 </div>
 
+<!-- Modal de recomendações -->
+<div class="ov" id="ovRec">
+  <div class="mdl wide" role="dialog" aria-modal="true" aria-labelledby="rcTit">
+    <div class="mdl-h">
+      <div>
+        <h3 id="rcTit">Recomendações</h3>
+        <div class="sub" id="rcSub"></div>
+      </div>
+      <button type="button" class="x" id="rcX" aria-label="Fechar">✕</button>
+    </div>
+    <div class="mdl-b scroll">
+      <div class="rgrid" id="rcGrid" aria-live="polite"></div>
+    </div>
+    <div class="mdl-f">
+      <button type="button" class="btn pri" id="rcOk">Fechar</button>
+    </div>
+  </div>
+</div>
 <!-- Resumo executivo -->
 <div class="ov" id="ovRes">
   <div class="mdl res" role="dialog" aria-modal="true" aria-labelledby="rsTit">
@@ -579,6 +614,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   const SB_URL = 'https://anptuyscbsqarvilzjcw.supabase.co';
   const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFucHR1eXNjYnNxYXJ2aWx6amN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2OTQ3MTUsImV4cCI6MjEwNjI3MDcxNX0.lvaPgaynu8bbne04q71CTeMpO39wcYOHrWKQEOvycO4';
   const T_DF = 'df_programa', T_CP = 'df_componentes', T_AT = 'df_atribuicoes', T_LT = 'df_lotes';
+  const T_RC = 'df_recomendacoes';   // recomendações (aba Consolidado: Equipamento, Data, Comentário)
   const T_OA = 'df_ordens_arquivo';   // arquivo Excel de ordens (substituído a cada leitura)
   const PAGE = 1000, BATCH = 500;
 
@@ -588,6 +624,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   const SHEET_C = 'Componentes';
   const REQ = {u:'unidade', c:'categoria', f:'frota', e:'equipamento', df:'df', dia:'dia'};
   const REQ_C = {ativo:'ativo', comp:'componente', nome:'nome padrao', nec:'data de necessidade'};
+  const REQ_R = {e:['equipamento','tag'], dt:['data'], cm:['comentario','comentarios']};
+  const RC_FLAG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h2v18H5z"/><path d="M8 4h11l-3 4.5L19 13H8z"/></svg>';
   const WD = ['D','S','T','Q','Q','S','S'];
   const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   const LOGO = 'data:image/png;base64,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';
@@ -613,6 +651,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   const DF_ROWS = new Map();
   const LOADED = new Set();
   let HAS_DF = false;
+  let DB_RC = [], recByEq = new Map(), recById = new Map();   // Recomendações (df_recomendacoes)
+  let ORD_ALL = 0;                                               // total de ordens lidas no arquivo (ORD = somente as projetadas)
   let ORD = [], ordByEq = new Map(), ORD_INFO = null, ORD_B64 = null;   // Base_Ordens_Projecao (arquivo no banco, substituído a cada leitura)
 
   /* =================== UTILIDADES =================== */
@@ -629,6 +669,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   const isoD = ms => { const d = new Date(ms); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`; };
   const fromIso = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s||''); return m ? Date.UTC(+m[1], +m[2]-1, +m[3]) : null; };
   const todayMs = () => { const d = new Date(); return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); };
+  function ordMinMs(){ const d = new Date(todayMs()); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1); }
   const monKey = ms => { const d = new Date(ms); return d.getUTCFullYear()*12 + d.getUTCMonth(); };
   const monLbl = k => `${MESES[k % 12]}/${Math.floor(k / 12)}`;
   const nf = n => Number(n || 0).toLocaleString('pt-BR');
@@ -698,7 +739,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   var OUTBOX = [];                       // [{qid, tipo:'atribuir'|'remover'|'importar', payload, em, desc}]
   let syncing = false;
   const saveOutbox = () => { IDB.set('outbox', OUTBOX); try { localStorage.setItem('rmcp_outbox_n', String(OUTBOX.length)); } catch(e){} };
-  const saveSnap = () => IDB.set('snap', {em: Date.now(), df: DB_DF, cp: DB_CP, at: DB_AT, meses: [...LOADED], has: HAS_DF, ordFile: ORD_B64, ordInfo: ORD_INFO});
+  const saveSnap = () => IDB.set('snap', {em: Date.now(), df: DB_DF, cp: DB_CP, at: DB_AT, meses: [...LOADED], has: HAS_DF, ordFile: ORD_B64, ordInfo: ORD_INFO, rc: DB_RC});
   function enqueue(tipo, payload, desc){
     OUTBOX.push({qid: Date.now() + '-' + Math.random().toString(36).slice(2, 7), tipo, payload, em: Date.now(), desc});
     saveOutbox();
@@ -708,6 +749,14 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   async function runItem(it){
     const p = it.payload;
     if (it.tipo === 'ordens') return sendOrdCache(p);
+    if (it.tipo === 'recomendacoes'){
+      const ini = p.sent || 0;
+      for (let i = ini; i < p.rows.length; i += BATCH){
+        await rpc(p.fn, {rows: p.rows.slice(i, i + BATCH)});
+        p.sent = Math.min(i + BATCH, p.rows.length); saveOutbox();
+      }
+      return;
+    }
     if (it.tipo === 'atribuir') return rpc('rmcp_atribuir', {rows: p.rows});
     if (it.tipo === 'remover') return rpc('rmcp_remover_atribuicao', {ids: p.ids});
     if (it.tipo === 'importar'){
@@ -773,8 +822,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   }
   // Aplica localmente uma importação feita offline (para já aparecer no Gantt)
   let TMP_N = 0;
-  function applyLocalImport(isDF, rows){
-    if (isDF){
+  function applyLocalImport(tipo, rows){
+    if (tipo === 'programa_df'){
       const idx = new Map(); DF_ROWS.forEach((r, id) => idx.set(r.equipamento + '|' + r.dia, id));
       rows.forEach(o => {
         const old = idx.get(o.equipamento + '|' + o.dia), id = old != null ? old : 'tmp-' + (++TMP_N);
@@ -783,6 +832,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       DB_DF = [...DF_ROWS.values()];
       rows.forEach(o => LOADED.add(monKey(fromIso(o.dia))));
       HAS_DF = HAS_DF || rows.length > 0;
+    } else if (tipo === 'recomendacoes'){
+      rows.forEach(o => DB_RC.push({id:'tmp-' + (++TMP_N), equipamento:o.equipamento, data:o.data, comentario:o.comentario}));
     } else {
       rows.forEach(o => DB_CP.push({id:'tmp-' + (++TMP_N), ativo:o.ativo, componente:o.componente, nome_padrao:o.nome_padrao, data_necessidade:o.data_necessidade}));
     }
@@ -815,7 +866,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       let m = `${r.status} ${r.statusText}`, code = '';
       try { const j = await r.json(); code = j.code || ''; m = j.message || j.hint || j.details || m; } catch(e){}
       const e = new Error(m); e.status = r.status; e.code = code;
-      if (r.status === 404 || code === 'PGRST202') e.message = `Função "${fn}" não encontrada. Rode o SQL "${fn.startsWith('rmcp_ordens') ? 'supabase_rmcp_ordens_arquivo.sql' : 'supabase_rmcp_gravacao.sql'}" no Supabase.`;
+      if (r.status === 404 || code === 'PGRST202') e.message = `Função "${fn}" não encontrada. Rode o SQL "${fn.startsWith('rmcp_ordens') ? 'supabase_rmcp_ordens_arquivo.sql' : (fn.includes('recomendacoes') ? 'supabase_rmcp_recomendacoes.sql' : 'supabase_rmcp_gravacao.sql')}" no Supabase.`;
       throw e;
     }
     const t = await r.text();
@@ -964,6 +1015,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     if ($('ovMsg').classList.contains('show')){ $('ovMsg').classList.remove('show'); return; }
     if ($('ovImp').classList.contains('show')){ closeImp(); return; }
     if ($('ovComp').classList.contains('show')){ closeComp(); return; }
+    if ($('ovRec').classList.contains('show')){ closeRec(); return; }
     if ($('ovOrdD').classList.contains('show')){ closeOrdDet(); return; }
     if ($('ovOrd').classList.contains('show')){ closeOrd(); return; }
     if ($('ovRes').classList.contains('show')){ $('ovRes').classList.remove('show'); return; }
@@ -1029,7 +1081,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       const cp = await sbAll(T_CP, 'id,ativo,componente,nome_padrao,data_necessidade', n => { cntCP = n; prog(); });
       const at = await sbAll(T_AT, 'id,componente_id,equipamento,parada_inicio,parada_fim');
       await loadOrdCache(t => { $('ldTxt').textContent = t; });
-      DB_CP = cp; DB_AT = at; HAS_DF = !!(any && any.length) || DB_DF.length > 0;
+      const rc = await loadRec();
+      DB_CP = cp; DB_AT = at; DB_RC = rc; HAS_DF = !!(any && any.length) || DB_DF.length > 0;
       updChip();
       saveSnap();
       if (uiReady && quiet === true){ buildAll(); refreshUI(); } else { buildAll(); showScreens(); }
@@ -1041,7 +1094,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       if (snap && (snap.df.length || snap.cp.length)){
         DF_ROWS.clear(); LOADED.clear();
         snap.df.forEach(x => DF_ROWS.set(x.id, x)); (snap.meses || []).forEach(k => LOADED.add(k));
-        DB_DF = snap.df; DB_CP = snap.cp; DB_AT = snap.at; HAS_DF = !!snap.has;
+        DB_DF = snap.df; DB_CP = snap.cp; DB_AT = snap.at; DB_RC = snap.rc || []; HAS_DF = !!snap.has;
         if (snap.ordFile){ try { loadOrdBytes(fromB64(snap.ordFile), snap.ordInfo); ORD_B64 = snap.ordFile; } catch(e){} }
         const d = new Date(snap.em);
         setDB(false, `Offline · dados de ${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`);
@@ -1055,7 +1108,16 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       }
     } finally { hideLoad(); }
   }
-  function updChip(){ setDB(true, `Banco: ${nf(DB_DF.length)} DF no período · ${nf(DB_CP.length)} comp.${ORD.length ? ` · ${nf(ORD.length)} ordens` : ''}`); }
+  function updChip(){ setDB(true, `Banco: ${nf(DB_DF.length)} DF no período · ${nf(DB_CP.length)} comp.${ORD.length ? ` · ${nf(ORD.length)} ordens` : ''}${DB_RC.length ? ` · ${nf(DB_RC.length)} recom.` : ''}`); }
+  // Recomendações: se a tabela ainda não existir no banco, o app segue funcionando sem elas
+  async function loadRec(){
+    try { return await sbAll(T_RC, 'id,equipamento,data,comentario'); }
+    catch(err){
+      if (err.net) throw err;
+      console.warn('Recomendações indisponíveis:', err.message || err, '— rode o SQL "supabase_rmcp_recomendacoes.sql".');
+      return [];
+    }
+  }
   let pcT = null, pcBusy = Promise.resolve();
   function periodChanged(){
     render(); centerToday();
@@ -1134,6 +1196,17 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       compByEq.get(k).push(cp);
     });
     compByEq.forEach(l => l.sort((a,b) => a.nec - b.nec || coll.compare(a.comp, b.comp)));
+    // ---- Recomendações (por equipamento)
+    recByEq = new Map(); recById = new Map();
+    DB_RC.forEach(r => {
+      const dt = fromIso(r.data); if (dt == null || !r.equipamento) return;
+      const rc = {id: 'r' + r.id, tag: r.equipamento, dt, txt: r.comentario || ''};
+      recById.set(rc.id, rc);
+      const k = norm(r.equipamento);
+      if (!recByEq.has(k)) recByEq.set(k, []);
+      recByEq.get(k).push(rc);
+    });
+    recByEq.forEach(l => l.sort((a,b) => a.dt - b.dt));
     buildEvents();
     // ---- Atribuições salvas
     ASSIGN.clear(); AT_ROW.clear();
@@ -1251,6 +1324,8 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   $('fileInC').addEventListener('change', e => { const f = e.target.files[0]; if (f) importComp(f); });
   $('btnPickO').addEventListener('click', () => pick('fileInO'));
   $('fileInO').addEventListener('change', e => { const f = e.target.files[0]; if (f) importOrd(f); });
+  $('btnPickR').addEventListener('click', () => pick('fileInR'));
+  $('fileInR').addEventListener('change', e => { const f = e.target.files[0]; if (f) importRec(f); });
   const dz = $('dropZone');
   ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
   ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
@@ -1355,6 +1430,38 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     } catch(err){ hideLoad(); showMsg('Não foi possível ler a planilha', err.message || String(err)); }
   }
 
+  // ---------- Recomendações (aba Consolidado → banco) ----------
+  const recKey = (e, d, t) => [norm(e), d, norm(t)].join('|');
+  async function importRec(file){
+    try {
+      const wb = await readWb(file, 'Lendo Recomendações...');
+      const sc = findSheet(wb, 'Consolidado', REQ_R);
+      if (!sc) throw new Error('Não encontrei a aba "Consolidado" com as colunas:\nEquipamento, Data, Comentário\n\nAbas disponíveis: ' + wb.SheetNames.join(', '));
+      $('ldTxt').textContent = 'Verificando duplicidades...';
+      await sleep(20);
+      const {row, map, rg, at} = sc.h;
+      let lidas = 0;
+      const byKey = new Map(), dupArq = [];
+      for (let r = row + 1; r <= rg.e.r; r++){
+        const e = clean(cellText(at(r, map.e)));
+        const dt = parseDia(at(r, map.dt));
+        const txt = cellText(at(r, map.cm)).replace(/\r\n?/g, '\n').trim();
+        if (!e || dt == null || !txt) continue;
+        lidas++;
+        const o = {equipamento: e, data: isoD(dt), comentario: txt, _ln: r + 1};
+        const k = recKey(o.equipamento, o.data, o.comentario);
+        const prev = byKey.get(k);
+        if (prev) dupArq.push({...o, _keep: prev._ln}); else byKey.set(k, o);
+      }
+      if (!lidas) throw new Error('Nenhuma linha válida (Equipamento + Data + Comentário) foi encontrada na aba "' + sc.name + '".');
+      const dbKeys = new Set(DB_RC.map(r => recKey(r.equipamento, r.data, r.comentario || '')));
+      const novas = [], iguais = [];
+      byKey.forEach((o, k) => (dbKeys.has(k) ? iguais : novas).push(o));
+      IMP = {tipo:'recomendacoes', arquivo:file.name, aba:sc.name, lidas, novas, alteradas:[], dupArq, iguais};
+      hideLoad();
+      openImp();
+    } catch(err){ hideLoad(); showMsg('Não foi possível ler a planilha', err.message || String(err)); }
+  }
   // ---------- Base_Ordens_Projecao (somente leitura local) ----------
   const ORD_INT = new Set(['estrategia','ciclo','pacote']), ORD_DATE = new Set(['tolmindata','tolmaxdata']);
   const REQ_O = {tag:['tag','equipamento'], dt:['data','data planejada','dia']};
@@ -1405,12 +1512,15 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     return {out, dup, so};
   }
   function applyOrd(out, info){
-    ORD = out || []; ORD_INFO = info || null; ordByEq = new Map();
+    // Ordens planejadas só são projetadas do PRÓXIMO MÊS em diante (mês atual e anteriores não)
+    const all = out || [], min = ordMinMs();
+    ORD = all.filter(o => o.dt >= min); ORD_ALL = all.length; ORD_INFO = info || null; ordByEq = new Map();
     ORD.forEach(o => { const k = norm(o.tag); if (!ordByEq.has(k)) ordByEq.set(k, []); ordByEq.get(k).push(o); });
-    $('btnPickOTxt').textContent = ORD.length ? `Ordens (${nf(ORD.length)})` : 'Ler Ordens';
+    $('btnPickOTxt').textContent = ORD_ALL ? `Ordens (${nf(ORD.length)})` : 'Ler Ordens';
     updOrdDt();
     const quando = ORD_INFO && ORD_INFO.atualizado_em ? new Date(ORD_INFO.atualizado_em).toLocaleString('pt-BR') : '';
     $('btnPickO').title = ORD_INFO ? `Arquivo no banco: ${ORD_INFO.arquivo || ''}${quando ? ' · ' + quando : ''}\nClique para ler nova planilha e substituir o arquivo` : 'Lê a Base_Ordens_Projecao e substitui o arquivo de ordens no banco';
+    $('btnPickO').title += `\nProjeção: somente ordens a partir de ${fmtD(min)} (próximo mês em diante)`;
   }
   // Abre o arquivo (bytes) e aplica as ordens
   function loadOrdBytes(u8, info){
@@ -1444,7 +1554,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
       const semEq = [...ordByEq.keys()].filter(k => !eqSet.has(k)).length;
       $('optOrd').checked = true;
       render(true);
-      const resumo = `${nf(ORD.length)} ordem(ns) lida(s) de "${so.name}".${dup ? `\nDuplicadas no arquivo (ignoradas): ${nf(dup)}` : ''}${semEq ? `\nTAGs sem equipamento no Programa de DF: ${nf(semEq)}` : ''}`;
+      const resumo = `${nf(ORD_ALL)} ordem(ns) lida(s) de "${so.name}".\nProjetadas (a partir de ${fmtD(ordMinMs())}): ${nf(ORD.length)}\nNão projetadas (mês atual ou anteriores): ${nf(ORD_ALL - ORD.length)}${dup ? `\nDuplicadas no arquivo (ignoradas): ${nf(dup)}` : ''}${semEq ? `\nTAGs sem equipamento no Programa de DF: ${nf(semEq)}` : ''}`;
       $('ldTxt').textContent = `Enviando arquivo ao banco (${(u8.length/1024).toFixed(0)} KB)...`;
       const st = await saveOrdFile(ORD_B64, info);
       hideLoad(); updChip(); updOrdDt();
@@ -1540,11 +1650,29 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
   });
   $('orExp').addEventListener('click', () => openOrdDet(curOrd));
 
+  // ---------- Modal de recomendações ----------
+  function openRec(ids){
+    const list = ids.map(id => recById.get(id)).filter(Boolean);
+    if (!list.length) return;
+    const eqx = EQ.find(q => norm(q.e) === norm(list[0].tag));
+    $('rcTit').textContent = `Recomendações · ${eqx ? eqx.e : list[0].tag}`;
+    $('rcSub').innerHTML = `${eqx ? `${esc(eqx.u)} › ${esc(eqx.c)} › ${esc(eqx.f)}<br>` : ''}Data: <b>${fmtD(list[0].dt)}</b> · ${list.length} recomendação(ões)`;
+    $('rcGrid').innerHTML = list.map(r => `<div class="ccard rcard">
+      <h4>${esc(r.tag)}</h4>
+      <dl><dt>Data</dt><dd>${fmtD(r.dt)}</dd></dl>
+      <div class="rtxt">${esc(r.txt || '—')}</div>
+    </div>`).join('');
+    $('ovRec').classList.add('show');
+  }
+  function closeRec(){ $('ovRec').classList.remove('show'); }
+  $('rcX').addEventListener('click', closeRec);
+  $('rcOk').addEventListener('click', closeRec);
+  $('ovRec').addEventListener('click', e => { if (e.target === $('ovRec')) closeRec(); });
   // ---------- Modal de verificação ----------
   let impTab = 'novas';
   function openImp(){
     const I = IMP, isDF = I.tipo === 'programa_df';
-    $('imTit').textContent = `Verificação de duplicidade · ${isDF ? 'Programa de DF' : 'Componentes'}`;
+    $('imTit').textContent = `Verificação de duplicidade · ${isDF ? 'Programa de DF' : (I.tipo === 'recomendacoes' ? 'Recomendações' : 'Componentes')}`;
     $('imSub').textContent = `${I.arquivo} › aba "${I.aba}"`;
     const k = (cls, v, l) => `<div class="${cls}"><b>${nf(v)}</b><small>${l}</small></div>`;
     $('imKpis').innerHTML = k('', I.lidas, 'Linhas lidas') + k('d', I.dupArq.length, 'Duplicadas no arquivo') +
@@ -1559,7 +1687,9 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
     $('imSend').textContent = env ? `Enviar ao banco (${nf(env)})` : 'Nada para enviar';
     $('imNote').textContent = isDF
       ? 'Chave de duplicidade: Equipamento + Dia. No arquivo, prevalece a linha com DF = 0 (ou a última linha). Linhas iguais às do banco são ignoradas; linhas com mudança em Unidade, Categoria, Frota ou DF são atualizadas.'
-      : 'Chave de duplicidade: Ativo + Componente + Nome Padrão + Data de Necessidade. Linhas repetidas no arquivo e já existentes no banco não são enviadas.';
+      : (I.tipo === 'recomendacoes'
+        ? 'Chave de duplicidade: Equipamento + Data + Comentário. Linhas repetidas no arquivo e já existentes no banco não são enviadas.'
+        : 'Chave de duplicidade: Ativo + Componente + Nome Padrão + Data de Necessidade. Linhas repetidas no arquivo e já existentes no banco não são enviadas.');
     renderImpTab();
     $('ovImp').classList.add('show');
   }
@@ -1575,6 +1705,9 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
         const dfOld = old && (!!old.df_zero !== !!o.df_zero || (old.df_txt ?? null) !== (o.df_txt ?? null)) ? `<span class="old">${old.df_zero ? '0' : esc(old.df_txt ?? '(vazio)')}</span>` : '';
         return `<tr class="${old ? 'chg' : ''}"><td>${o._ln}</td><td>${ch(o.unidade, old && old.unidade, esc(o.unidade))}</td><td>${ch(o.categoria, old && old.categoria, esc(o.categoria))}</td><td>${ch(o.frota, old && old.frota, esc(o.frota))}</td><td>${esc(o.equipamento)}</td><td>${fmtD(fromIso(o.dia))}</td><td>${dfOld}${dfCell(o)}</td>${impTab === 'dupArq' ? `<td>linha ${o._keep}</td>` : ''}</tr>`;
       }).join('');
+    } else if (I.tipo === 'recomendacoes'){
+      head = `<tr><th>Linha</th><th>Equipamento</th><th>Data</th><th>Comentário</th>${impTab === 'dupArq' ? '<th>Mantida</th>' : ''}</tr>`;
+      body = rows.slice(0, MAX).map(o => `<tr><td>${o._ln}</td><td>${esc(o.equipamento)}</td><td>${fmtD(fromIso(o.data))}</td><td class="rc-c">${esc(o.comentario)}</td>${impTab === 'dupArq' ? `<td>linha ${o._keep}</td>` : ''}</tr>`).join('');
     } else {
       head = `<tr><th>Linha</th><th>Ativo</th><th>Componente</th><th>Nome Padrão</th><th>Data de Necessidade</th>${impTab === 'dupArq' ? '<th>Mantida</th>' : ''}</tr>`;
       body = rows.slice(0, MAX).map(o => `<tr><td>${o._ln}</td><td>${esc(o.ativo)}</td><td>${esc(o.componente)}</td><td>${esc(o.nome_padrao)}</td><td>${fmtD(fromIso(o.data_necessidade))}</td>${impTab === 'dupArq' ? `<td>linha ${o._keep}</td>` : ''}</tr>`).join('');
@@ -1590,18 +1723,19 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14p
 
   $('imSend').addEventListener('click', async () => {
     const I = IMP; if (!I) return;
-    const isDF = I.tipo === 'programa_df';
+    const isDF = I.tipo === 'programa_df', isRC = I.tipo === 'recomendacoes';
     const send = [...I.novas, ...I.alteradas];
     if (!send.length) return;
     $('ovImp').classList.remove('show');
     const lote = {tipo: I.tipo, arquivo: I.arquivo, aba: I.aba, linhas_lidas: I.lidas, duplicadas_arquivo: I.dupArq.length,
       ja_existentes: I.iguais.length, inseridas: I.novas.length, atualizadas: I.alteradas.length};
     const clean0 = send.map(o => { const x = {...o}; delete x._ln; delete x._old; delete x._keep; return x; });
-    const fn = isDF ? 'rmcp_upsert_programa' : 'rmcp_upsert_componentes';
-    const desc = `Importação ${isDF ? 'Programa de DF' : 'Componentes'} — ${I.arquivo} (${nf(clean0.length)} linhas)`;
+    const fn = isDF ? 'rmcp_upsert_programa' : (isRC ? 'rmcp_upsert_recomendacoes' : 'rmcp_upsert_componentes');
+    const desc = `Importação ${isDF ? 'Programa de DF' : (isRC ? 'Recomendações' : 'Componentes')} — ${I.arquivo} (${nf(clean0.length)} linhas)`;
     const offline = () => {
-      enqueue('importar', {lote, fn, rows: clean0}, desc);
-      applyLocalImport(isDF, clean0);
+      if (isRC) enqueue('recomendacoes', {fn, rows: clean0}, desc);
+      else enqueue('importar', {lote, fn, rows: clean0}, desc);
+      applyLocalImport(I.tipo, clean0);
       IMP = null; hideLoad();
       buildAll(); refreshUI();
       showMsg('Importação salva offline', `${nf(clean0.length)} linha(s) guardadas neste navegador.
@@ -1612,10 +1746,13 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     if (OUTBOX.length){ offline(); return; }
     showLoad('Enviando ao banco...');
     try {
-      const loteId = await rpc('rmcp_novo_lote', lote);
-      const rows = clean0.map(o => ({...o, lote_id: loteId}));
-      await rpcBatches(fn, {lote_id: loteId}, rows,
-        (n, t) => { $('ldTxt').textContent = `Enviando ao banco... ${Math.round(n / t * 100)}% (${nf(n)} de ${nf(t)})`; });
+      const prog = (n, t) => { $('ldTxt').textContent = `Enviando ao banco... ${Math.round(n / t * 100)}% (${nf(n)} de ${nf(t)})`; };
+      if (isRC) await rpcBatches(fn, {}, clean0, prog);
+      else {
+        const loteId = await rpc('rmcp_novo_lote', lote);
+        const rows = clean0.map(o => ({...o, lote_id: loteId}));
+        await rpcBatches(fn, {lote_id: loteId}, rows, prog);
+      }
       const res = `Novas: ${nf(I.novas.length)}${isDF ? `\nAtualizadas: ${nf(I.alteradas.length)}` : ''}\nIgnoradas (já existiam): ${nf(I.iguais.length)}\nDuplicadas no arquivo (descartadas): ${nf(I.dupArq.length)}`;
       IMP = null;
       hideLoad();
@@ -1730,11 +1867,11 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     let n = [msU,msC,msF,msE].filter(m => m.get().size).length;
     if (!isDefaultPeriod()) n++;
     ['optZero','optComp','optCnt'].forEach(id => { if ($(id).checked) n++; });
-    ['optVal','optNec','optOrd'].forEach(id => { if (!$(id).checked) n++; });
+    ['optVal','optNec','optOrd','optRec'].forEach(id => { if (!$(id).checked) n++; });
     $('fltBadge').textContent = n;
     $('fltBadge').classList.toggle('hidden', !n);
   }
-  ['optVal','optZero','optComp','optNec','optCnt','optOrd'].forEach(id => $(id).addEventListener('change', () => render()));
+  ['optVal','optZero','optComp','optNec','optCnt','optOrd','optRec'].forEach(id => $(id).addEventListener('change', () => render()));
   $('zoom').addEventListener('change', () => { document.documentElement.style.setProperty('--col', $('zoom').value + 'px'); render(); centerToday(); });
   $('btnExp').addEventListener('click', () => { collapsed.clear(); render(true); });
   $('btnCol').addEventListener('click', () => { groupIds.forEach(id => { if (id.split('\u0002').length === 1) collapsed.add(id); }); render(); });
@@ -1742,13 +1879,15 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     [msU,msC,msF,msE,msW].forEach(m => m.clear());
     cascade('u');
     setDefaultPeriod();
-    $('optZero').checked = false; $('optComp').checked = false; $('optCnt').checked = false; $('optVal').checked = true; $('optNec').checked = true; $('optOrd').checked = true;
+    $('optZero').checked = false; $('optComp').checked = false; $('optCnt').checked = false; $('optVal').checked = true; $('optNec').checked = true; $('optOrd').checked = true; $('optRec').checked = true;
     periodChanged();
   });
 
   $('ginner').addEventListener('click', e => {
     const b = e.target.closest('.gbar');
     if (b){ openComp(b.dataset.ev); return; }
+    const rk = e.target.closest('.grec');
+    if (rk){ openRec(rk.dataset.rec.split(',')); return; }
     const ok = e.target.closest('.gord');
     if (ok){ openOrd(ok.dataset.ord.split(',')); return; }
     const nk = e.target.closest('.gnec');
@@ -1875,7 +2014,7 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     const W = n * colW;
     const seq = (a, b) => cols[b] - cols[a] === DAY;
     const U = msU.get(), C = msC.get(), F = msF.get(), E = msE.get();
-    const onlyZero = $('optZero').checked, onlyComp = $('optComp').checked, showVal = $('optVal').checked, showNec = $('optNec').checked, showOrd = $('optOrd').checked;
+    const onlyZero = $('optZero').checked, onlyComp = $('optComp').checked, showVal = $('optVal').checked, showNec = $('optNec').checked, showOrd = $('optOrd').checked, showRec = $('optRec').checked;
 
     const list = [];
     for (const eq of EQ){
@@ -1889,11 +2028,13 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
       if (showNec) (compByEq.get(norm(eq.e)) || []).forEach(c => { const i = idx.get(c.nec); if (i != null) necs.push({i, c}); });
       const ords = [];
       if (showOrd) (ordByEq.get(norm(eq.e)) || []).forEach(o => { const i = idx.get(o.dt); if (i != null) ords.push({i, o}); });
-      if (!cells.length && !necs.length && !ords.length) continue;
+      const recs = [];
+      if (showRec) (recByEq.get(norm(eq.e)) || []).forEach(r => { const i = idx.get(r.dt); if (i != null) recs.push({i, r}); });
+      if (!cells.length && !necs.length && !ords.length && !recs.length) continue;
       cells.sort((a,b) => a.i - b.i);
       if (onlyZero && !cells.some(c => c.zero)) continue;
       if (onlyComp && !cells.some(c => c.ev && evComps(c.ev).length)) continue;
-      list.push({eq, cells, necs, ords});
+      list.push({eq, cells, necs, ords, recs});
     }
     list.sort((a,b) => coll.compare(a.eq.u,b.eq.u) || coll.compare(a.eq.c,b.eq.c) || coll.compare(a.eq.f,b.eq.f) || coll.compare(a.eq.e,b.eq.e));
     LAST = {cols, list};
@@ -1999,6 +2140,13 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
         const tip = `${eq.e} · Ordens planejadas ${fmtD(cols[i])}\n` + os.map(o => `• ${ordVal(o,'ordem')} — ${ordVal(o,'ordem descricao')}`).join('\n') + '\nClique para ver as ordens';
         inner += `<button type="button" class="gord" data-ord="${esc(os.map(o => o.id).join(','))}" style="left:${i*colW + colW - 9}px" title="${esc(tip)}" aria-label="${os.length} ordem(ns) em ${fmtD(cols[i])}">${os.length > 1 ? os.length : ''}</button>`;
       });
+      const rByDay = new Map();
+      (x.recs || []).forEach(rr => { if (!rByDay.has(rr.i)) rByDay.set(rr.i, []); rByDay.get(rr.i).push(rr.r); });
+      rByDay.forEach((rs, i) => {
+        const brief = t => { const s = String(t).replace(/\s+/g, ' ').trim(); return s.length > 200 ? s.slice(0, 200) + '…' : s; };
+        const tip = `${eq.e} · Recomendações ${fmtD(cols[i])}\n` + rs.map(r => `• ${brief(r.txt)}`).join('\n') + '\nClique para ver as recomendações';
+        inner += `<button type="button" class="grec" data-rec="${esc(rs.map(r => r.id).join(','))}" style="left:${i*colW + 2}px" title="${esc(tip)}" aria-label="${rs.length} recomendação(ões) em ${fmtD(cols[i])}">${rs.length > 1 ? rs.length : RC_FLAG}</button>`;
+      });
       rows += `<div class="row e"><div class="lbl" style="padding-left:${8 + 3*16 + 6}px"><span class="dot"></span><span class="nm" title="${esc(eq.u)} › ${esc(eq.c)} › ${esc(eq.f)} › ${esc(eq.e)}">${esc(eq.e)}</span></div><div class="tl" style="width:${W}px">${inner}</div></div>`;
     };
     const walk = (nd, lvl, path) => {
@@ -2047,6 +2195,7 @@ Não feche os dados do navegador (cache) até a sincronização terminar.`, true
     const units = new Map();
     const getG = (u, c) => { if (!units.has(u)) units.set(u, new Map()); const cm = units.get(u); if (!cm.has(c)) cm.set(c, newGroup(u, c, n)); return cm.get(c); };
     list.forEach(x => {
+      if (!x.cells.length && !x.necs.length && !(x.ords || []).length) return;   // linha só com recomendação não entra no resumo
       const eq = x.eq, g = getG(eq.u, eq.c);
       g.nEq++;
       const bars = []; let cur = null;
